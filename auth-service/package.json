@@ -1,0 +1,47 @@
+{
+  "name": "auth",
+  "version": "0.1.1",
+  "private": true,
+  "files": [
+    "scripts/",
+    "app/",
+    "components/",
+    "hooks/",
+    "lib/",
+    "types/",
+    "proxy.ts",
+    "README.md"
+  ],
+  "bin": {
+    "create-next-auth-kit": "./scripts/create-next-auth-kit.mjs"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "auth:init": "node ./scripts/create-next-auth-kit.mjs"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "google-auth-library": "^10.6.2",
+    "jose": "^6.2.2",
+    "mongoose": "^9.3.3",
+    "next": "16.2.1",
+    "next-auth": "^4.24.13",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "resend": "^6.9.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

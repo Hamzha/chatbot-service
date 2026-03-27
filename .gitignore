@@ -5,9 +5,10 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
 
 # Virtual environments
-.venv
+.venv/
 
 # Local vector store persistence
 chroma_data/
@@ -15,20 +16,24 @@ chroma_data/
 # Streamlit uploads
 uploads/
 
-ProductionGradeRAGPythonApp-main/
-
 # JavaScript/TypeScript workspace artifacts
-javascript-implementation/node_modules/
-javascript-implementation/**/node_modules/
-javascript-implementation/**/dist/
-javascript-implementation/**/coverage/
-javascript-implementation/.npm/
-javascript-implementation/.turbo/
-javascript-implementation/.cache/
-javascript-implementation/.vite/
-javascript-implementation/*.tsbuildinfo
-javascript-implementation/**/.DS_Store
+node_modules/
+**/node_modules/
+**/dist/
+**/coverage/
+.npm/
+.turbo/
+.cache/
+.vite/
+*.tsbuildinfo
+.DS_Store
+
+# Next.js
+.next/
 
 # Environment files
 .env
-javascript-implementation/.env
+.env.local
+
+# Logs
+*.log
