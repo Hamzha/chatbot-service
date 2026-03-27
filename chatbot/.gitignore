@@ -1,0 +1,13 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/chroma_data/
+backend/uploads/
+backend/.env
+
+# Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+

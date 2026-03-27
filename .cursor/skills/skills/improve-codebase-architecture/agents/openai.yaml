@@ -1,0 +1,4 @@
+interface:
+  display_name: "Improve Architecture"
+  short_description: "Find and fix structural design problems"
+  default_prompt: "Use $improve-codebase-architecture to inspect this area and propose the smallest high-leverage architectural improvement."

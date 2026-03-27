@@ -1,0 +1,4 @@
+interface:
+  display_name: "PRD to Issues"
+  short_description: "Break a PRD into execution-ready issues"
+  default_prompt: "Use $prd-to-issues to turn this PRD into a small, dependency-aware set of GitHub issues."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Find Redundant Code"
+  short_description: "Identify dead code, obsolete files, and cleanup candidates"
+  default_prompt: "Use $find-redundant-code to scan this area for dead code, obsolete files, duplicate implementations, or one-off scripts, and report each cleanup candidate with evidence for why it is probably no longer required."

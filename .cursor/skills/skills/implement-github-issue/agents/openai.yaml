@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement GitHub Issue"
+  short_description: "Implement issue numbers end to end"
+  default_prompt: "Use $implement-github-issue to implement GitHub issue #123 in this repository. Read the target issue plus any directly referenced dependency or parent issues first, restate in-scope and out-of-scope items, implement only the target issue with TDD, repeat review/fix passes until no issues remain, do not commit or open a PR unless asked, then finish with lint, test, and build."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement GitHub Parent Issue"
+  short_description: "Work child issues sequentially with repeated review"
+  default_prompt: "Use $implement-github-parent-issue to implement parent issue #123 in this repository by working its ordered child issues sequentially, using a fresh worker context per child, repeating review and repair passes after each one, and finishing with lint, test, and build."

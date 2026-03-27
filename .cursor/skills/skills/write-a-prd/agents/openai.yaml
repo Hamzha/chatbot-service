@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write a PRD"
+  short_description: "Draft a concise product requirements doc"
+  default_prompt: "Use $write-a-prd to turn this feature idea into a concise, execution-ready PRD."

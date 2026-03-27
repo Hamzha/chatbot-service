@@ -1,0 +1,4 @@
+interface:
+  display_name: "Full Repo Validation"
+  short_description: "Run lint, build, and tests repo-wide"
+  default_prompt: "Use $full-repo-validation to run lint, build, and test across the whole monorepo, fix every failure, and finish only when the repo is fully green."

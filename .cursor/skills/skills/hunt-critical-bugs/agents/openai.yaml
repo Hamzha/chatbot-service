@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hunt Critical Bugs"
+  short_description: "Find and fix obvious P0/P1 defects"
+  default_prompt: "Use $hunt-critical-bugs to scan this area for a very obvious P0 or P1 bug, fix the smallest validated critical issue with regression coverage, and finish by running lint, build, and test."

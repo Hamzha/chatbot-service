@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grill Me"
+  short_description: "Pressure-test a request and spec only when needed"
+  default_prompt: "Use $grill-me to challenge this request, expose the important gaps, and leave behind a single Markdown spec file when the task is substantial enough to warrant one before implementation."

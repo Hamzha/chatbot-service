@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chatbot-backend"
+version = "0.1.0"
+description = "Standalone modular chatbot backend with FastAPI and Inngest"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn>=0.30.0",
+  "python-multipart>=0.0.9",
+  "python-dotenv>=1.0.1",
+  "pydantic>=2.8.0",
+  "pydantic-settings>=2.3.0",
+  "inngest>=0.5.0",
+  "openai>=1.40.0",
+  "requests>=2.32.0",
+  "chromadb>=0.5.5",
+  "pypdf>=4.2.0",
+]
+
+[tool.setuptools]
+packages = ["app"]
+

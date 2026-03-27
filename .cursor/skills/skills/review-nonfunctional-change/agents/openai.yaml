@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Nonfunctional Change"
+  short_description: "Review a mostly nonfunctional change, keep proven improvements, and fix regressions"
+  default_prompt: "Use $review-nonfunctional-change to compare this change against the repo default branch, distinguish regressions from justified improvements or bug fixes, prove problems with failing tests or equivalent direct evidence, fix what should not stay, run lint/build/test, and commit if requested."

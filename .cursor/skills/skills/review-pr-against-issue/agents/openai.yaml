@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review PR Against Issue"
+  short_description: "Review PRs for merge readiness"
+  default_prompt: "Use $review-pr-against-issue to review this pull request against its linked issue or spec, identify only proven blockers and cleanup items, fix them if requested, run relevant validation, and decide whether the PR is ready to merge."

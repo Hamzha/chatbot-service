@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create PR"
+  short_description: "Open a PR from local changes"
+  default_prompt: "Use $create-pr-from-changes to turn the current local changes into a pull request."
