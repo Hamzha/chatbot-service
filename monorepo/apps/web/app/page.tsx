@@ -1,102 +1,92 @@
-import Image, { type ImageProps } from "next/image";
-import { Button } from "@repo/ui/button";
-import styles from "./page.module.css";
+import Link from "next/link";
+import { LogoutButton } from "@/components/auth/LogoutButton";
+import { getCurrentUserFromToken } from "@/lib/auth/authService";
+import { getSessionCookie } from "@repo/auth/lib/cookies";
 
-type Props = Omit<ImageProps, "src"> & {
-  srcLight: string;
-  srcDark: string;
-};
-
-const ThemeImage = (props: Props) => {
-  const { srcLight, srcDark, ...rest } = props;
+export default async function Home() {
+  const token = await getSessionCookie();
+  const user = token ? await getCurrentUserFromToken(token) : null;
 
   return (
-    <>
-      <Image {...rest} src={srcLight} className="imgLight" />
-      <Image {...rest} src={srcDark} className="imgDark" />
-    </>
-  );
-};
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe_0%,_#f0f9ff_35%,_#f8fafc_70%)] px-4 py-10 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-6xl rounded-3xl border border-sky-100 bg-white/85 p-6 shadow-[0_18px_60px_-30px_rgba(14,116,144,0.45)] backdrop-blur-sm sm:p-8 lg:p-10">
+        <div className="grid gap-8 lg:grid-cols-[1.3fr_0.9fr] lg:items-start">
+          <div className="space-y-6">
+            <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
+              AI Chatbot Platform
+            </span>
 
-export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <ThemeImage
-          className={styles.logo}
-          srcLight="turborepo-dark.svg"
-          srcDark="turborepo-light.svg"
-          alt="Turborepo logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>apps/web/app/page.tsx</code>
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+            <h1 className="text-balance text-4xl font-semibold leading-tight text-zinc-900 sm:text-5xl">
+              AI-powered chatbot with auth, scraping, and RAG.
+            </h1>
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new/clone?demo-description=Learn+to+implement+a+monorepo+with+a+two+Next.js+sites+that+has+installed+three+local+packages.&demo-image=%2F%2Fimages.ctfassets.net%2Fe5382hct74si%2F4K8ZISWAzJ8X1504ca0zmC%2F0b21a1c6246add355e55816278ef54bc%2FBasic.png&demo-title=Monorepo+with+Turborepo&demo-url=https%3A%2F%2Fexamples-basic-web.vercel.sh%2F&from=templates&project-name=Monorepo+with+Turborepo&repository-name=monorepo-turborepo&repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fturborepo%2Ftree%2Fmain%2Fexamples%2Fbasic&root-directory=apps%2Fdocs&skippable-integrations=1&teamSlug=vercel&utm_source=create-turbo"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://turborepo.dev/docs?utm_source"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
+            <p className="max-w-2xl text-base leading-relaxed text-zinc-600 sm:text-lg">
+              Secure authentication, web scraping, and RAG-based PDF Q&A — all
+              in one platform. Sign up to get started.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              {user ? (
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="rounded-md bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
+                  >
+                    Open dashboard
+                  </Link>
+                  <LogoutButton />
+                </>
+              ) : (
+                <>
+                  <Link
+                    href="/signup"
+                    className="rounded-md bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
+                  >
+                    Create account
+                  </Link>
+                  <Link
+                    href="/login"
+                    className="rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                  >
+                    Log in
+                  </Link>
+                </>
+              )}
+            </div>
+
+            {user ? (
+              <p className="text-sm text-zinc-600">
+                Signed in as <span className="font-medium text-zinc-800">{user.email}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-500">
+                New user signups require email verification before login.
+              </p>
+            )}
+          </div>
+
+          <aside className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 sm:p-6">
+            <h2 className="text-lg font-semibold text-zinc-900">Platform Features</h2>
+            <ul className="mt-4 space-y-3 text-sm text-zinc-600">
+              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                Secure JWT sessions via HTTP-only cookies
+              </li>
+              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                MongoDB + Mongoose user persistence
+              </li>
+              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                Email verification + forgot/reset password flows
+              </li>
+              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                RAG-based PDF Q&A with local LLM
+              </li>
+              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                Web scraping (static + dynamic sites)
+              </li>
+            </ul>
+          </aside>
         </div>
-        <Button appName="web" className={styles.secondary}>
-          Open alert
-        </Button>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com/templates?search=turborepo&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://turborepo.dev?utm_source=create-turbo"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to turborepo.dev →
-        </a>
-      </footer>
-    </div>
+      </section>
+    </main>
   );
 }

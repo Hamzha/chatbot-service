@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyEmailToken } from "@repo/auth/lib/tokens";
 import { verifyUserEmail } from "@/lib/db/userRepo";
 
-/**
- * Email verification route
- * GET /api/auth/verify-email?token=...
- */
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams;
@@ -15,7 +11,6 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Missing verification token" }, { status: 400 });
         }
 
-        // Verify the token
         const payload = await verifyEmailToken(token);
 
         if (!payload || payload.type !== "email_verification") {
@@ -26,7 +21,6 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Invalid token payload" }, { status: 400 });
         }
 
-        // Mark email as verified in database
         const user = await verifyUserEmail(payload.userId);
 
         if (!user) {
