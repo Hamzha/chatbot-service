@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # Scraping
     request_timeout_seconds: int = 30
-    playwright_timeout_ms: int = 30000
+    playwright_timeout_ms: int = 60000
     max_concurrent_requests: int = 10
     max_retries: int = 3
     retry_backoff_base: float = 2.0

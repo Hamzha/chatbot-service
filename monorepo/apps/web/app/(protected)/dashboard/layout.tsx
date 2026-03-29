@@ -1,0 +1,24 @@
+import { redirect } from "next/navigation";
+import { getCurrentUserFromToken } from "@/lib/auth/authService";
+import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { Sidebar } from "@/components/dashboard/Sidebar";
+
+export default async function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const token = await getSessionCookie();
+  const user = token ? await getCurrentUserFromToken(token) : null;
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  return (
+    <div className="flex min-h-screen bg-zinc-100">
+      <Sidebar userName={user.name} userEmail={user.email} />
+      <main className="flex-1 ml-64 p-8">{children}</main>
+    </div>
+  );
+}
