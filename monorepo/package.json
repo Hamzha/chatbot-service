@@ -2,6 +2,7 @@
   "name": "monorepo",
   "private": true,
   "scripts": {
+    "setup": "npm install && npm run setup --workspace=webscraper",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "lint": "turbo run lint",

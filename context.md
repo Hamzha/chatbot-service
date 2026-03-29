@@ -9,32 +9,31 @@ chatbot/
 ├── context.md              ← you are here
 ├── monorepo/               ← Turborepo monorepo (Next.js apps + shared packages)
 │   ├── apps/
-│   │   ├── auth-service/   ← Auth app (port 3002) — wired into shared packages
 │   │   ├── web/            ← Default Next.js app (port 3000)
-│   │   └── docs/           ← Docs app (port 3001)
+│   │   ├── docs/           ← Docs app (port 3001)
+│   │   └── webscraper/     ← Web scraper (FastAPI + httpx/Playwright, port 8000)
 │   └── packages/
 │       ├── auth/           ← @repo/auth — shared auth types, validators, hooks, components, lib
 │       ├── ui/             ← @repo/ui — shared UI components (Button, Input, Card, etc.)
 │       ├── eslint-config/  ← @repo/eslint-config — shared ESLint configs
 │       └── typescript-config/ ← @repo/typescript-config — shared tsconfig presets
-├── microservices/          ← Standalone microservices (Python-based, not in Turborepo)
-│   ├── auth-service/       ← Original auth service (source of truth before monorepo extraction)
+├── microservices/          ← Standalone microservices (not in Turborepo)
+│   ├── auth-service/       ← Auth service (Next.js, port 3002) — not yet moved to monorepo
 │   ├── chatbot-service/    ← RAG chatbot (FastAPI + Inngest + Chroma + Streamlit + Ollama)
-│   └── webscrapper/        ← Web scraper (FastAPI + httpx/Playwright)
+│   └── webscrapper/        ← Web scraper (original location, now moved to monorepo/apps/webscraper/)
 ```
 
 ## Three Microservices
 
-### 1. Auth Service (Next.js) — now in monorepo
-- **Location:** `monorepo/apps/auth-service/`
-- **Original:** `microservices/auth-service/` (kept as reference)
+### 1. Auth Service (Next.js) — still in microservices
+- **Location:** `microservices/auth-service/`
 - **Tech:** Next.js 16, React 19, MongoDB/Mongoose, JWT (jose), bcryptjs, Resend email, Zod
 - **Port:** 3002
 - **Features:** Signup, login, logout, email verification, password reset, route protection via proxy.ts
-- **Shared code extracted to:**
+- **Status:** Shared code has been extracted into `@repo/auth` and `@repo/ui` packages, but the auth-service app itself has **not yet been moved** into `monorepo/apps/`. It still runs standalone from `microservices/auth-service/`.
+- **Shared packages (ready for wiring):**
   - `@repo/auth` — types, validators, useAuth hook, AuthCard/LoginForm/SignupForm/LogoutButton components, core lib (jwt, password, cookies, tokens, env)
   - `@repo/ui` — FormButton, Input, PasswordInput, FormError
-- **App-specific code stays local:** API routes, pages, authService.ts, session.ts, db layer (MongoDB), email templates (Resend), proxy.ts
 
 ### 2. Chatbot Service (Python)
 - **Location:** `microservices/chatbot-service/`
@@ -44,13 +43,14 @@ chatbot/
 - **Models:** nomic-embed-text (embeddings), qwen2.5:14b (generation)
 - **Not in Turborepo** — Python service, runs independently
 
-### 3. Web Scraper (Python)
-- **Location:** `microservices/webscrapper/`
+### 3. Web Scraper (Python) — now in monorepo
+- **Location:** `monorepo/apps/webscraper/`
+- **Original:** `microservices/webscrapper/` (kept as reference)
 - **Tech:** FastAPI, httpx + BeautifulSoup (static), Playwright (dynamic)
 - **Port:** 8000 (conflicts with chatbot API — use different port if running both)
 - **Features:** Single page scrape, recursive crawl (BFS), auto-detection of static vs dynamic sites
 - **Security:** SSRF prevention, API key auth, rate limiting
-- **Not in Turborepo** — Python service, runs independently
+- **In Turborepo** — Python service colocated with npm script wrappers; `turbo run dev` starts it alongside Next.js apps
 
 ## Shared Packages (Turborepo)
 
@@ -105,7 +105,7 @@ OLLAMA_EMBED_MODEL=nomic-embed-text
 OLLAMA_MODEL=qwen2.5:14b
 ```
 
-### Web Scraper (`microservices/webscrapper/.env`)
+### Web Scraper (`monorepo/apps/webscraper/.env`)
 ```
 SCRAPER_API_KEY=
 SCRAPER_ALLOWED_DOMAINS=[]
@@ -125,14 +125,14 @@ SCRAPER_RATE_LIMIT_PER_MINUTE=60
 | Chatbot API          | 8000  | http://localhost:8000  |
 | Inngest Dev          | 8288  | http://localhost:8288  |
 | Streamlit UI         | 8501  | http://localhost:8501  |
-| Web Scraper          | 8000  | http://localhost:8000  |
+| Web Scraper (monorepo)| 8000 | http://localhost:8000  |
 
 > Chatbot API and Web Scraper both default to port 8000 — run on different ports if using simultaneously.
 
 ## Git Branches
 - `main` — stable base
 - `feature/multi-service-structure` — microservices setup
-- `feature/shared-auth-package` — monorepo wiring with @repo/auth and @repo/ui (current work)
+- `feature/shared-auth-package` — shared @repo/auth and @repo/ui packages extracted (auth-service app not yet moved to monorepo)
 
 ## Known Issues
 - **Turbo CLI broken:** There is a stale `node_modules` folder at `C:\Users\My Computer\node_modules\` that hijacks npm resolution. Delete it to fix `turbo run` commands. Workaround: run `npx next dev` directly from the app directory.
@@ -140,9 +140,9 @@ SCRAPER_RATE_LIMIT_PER_MINUTE=60
 
 ## How to Run
 
-### Auth Service (from monorepo)
+### Auth Service (from microservices)
 ```bash
-cd monorepo/apps/auth-service
+cd microservices/auth-service
 cp .env.example .env.local   # fill in values
 npx next dev --port 3002
 ```
@@ -156,9 +156,12 @@ cd microservices/chatbot-service
 .\.venv\Scripts\python.exe -m streamlit run streamlit_app.py --server.port 8501  # Terminal 3
 ```
 
-### Web Scraper
+### Web Scraper (from monorepo)
 ```bash
-cd microservices/webscrapper
-source venv/Scripts/activate
-uvicorn app.main:app --reload
+cd monorepo/apps/webscraper
+npm run setup                       # first time only — creates .venv, installs deps + Playwright
+# Then either:
+turbo run dev --filter=webscraper   # from monorepo root
+# or:
+npm run dev                         # from apps/webscraper directly
 ```
