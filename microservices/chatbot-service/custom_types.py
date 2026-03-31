@@ -20,3 +20,10 @@ class RAQQueryResult(pydantic.BaseModel):
     sources: list[str]
     num_contexts: int
 
+
+class RAGIngestTextRequest(pydantic.BaseModel):
+    text_content: str
+    source_id: str
+    title: str | None = None
+    url: str | None = None
+
