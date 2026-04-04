@@ -10,23 +10,25 @@ type PasswordInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & 
 
 export function PasswordInput({ label, id, className = "", ...props }: PasswordInputProps) {
     const [showPassword, setShowPassword] = useState(false);
+    const toggleLabel = showPassword ? "Hide password" : "Show password";
 
     return (
         <label className="flex w-full flex-col gap-1 text-sm text-zinc-700">
             <span className="font-medium">{label}</span>
-            <div className="relative">
+            <div className="flex items-center rounded-md border border-zinc-300 bg-white pr-1 transition focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500">
                 <input
                     id={id}
                     type={showPassword ? "text" : "password"}
-                    className={`w-full rounded-md border border-zinc-300 px-3 py-2 pr-11 text-zinc-900 outline-none ring-sky-500 transition focus:ring-2 ${className}`}
+                    className={`min-w-0 flex-1 rounded-md border-0 bg-transparent px-3 py-2 text-zinc-900 outline-none placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:text-zinc-500 ${className}`}
                     {...props}
                 />
                 <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute inset-y-0 right-0 flex items-center px-3 text-zinc-500 hover:text-zinc-700"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                    title={showPassword ? "Hide password" : "Show password"}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                    aria-label={toggleLabel}
+                    aria-pressed={showPassword}
+                    title={toggleLabel}
                 >
                     {showPassword ? (
                         <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
