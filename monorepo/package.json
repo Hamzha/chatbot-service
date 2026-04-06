@@ -2,9 +2,12 @@
   "name": "monorepo",
   "private": true,
   "scripts": {
-    "setup": "npm install && npm run setup --workspace=webscraper",
+    "setup": "npm install && npm run setup --workspace=webscraper && npm run setup --workspace=chatbot-api",
     "build": "turbo run build",
     "dev": "turbo run dev",
+    "dev:chatbot-api": "npm run dev --workspace=chatbot-api",
+    "dev:chatbot-inngest": "powershell -ExecutionPolicy Bypass -File ./scripts/run-chatbot-inngest.ps1 -BackendPort 8001",
+    "dev:chatbot": "npm run dev:chatbot-api",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types"

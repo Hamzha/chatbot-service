@@ -16,8 +16,8 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
     const router = useRouter();
     const { login } = useAuth();
 
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const [email, setEmail] = useState("test@example.com");
+    const [password, setPassword] = useState("test@examplpe");
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
