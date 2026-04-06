@@ -7,6 +7,7 @@ import { FormError } from "@repo/ui/form-error";
 import { Input } from "@repo/ui/input";
 import { PasswordInput } from "@repo/ui/password-input";
 import { useAuth } from "@repo/auth/hooks/useAuth";
+import { validateEmail, validateName, validateSignupPassword } from "@/components/auth/validation";
 
 export function SignupForm() {
     const router = useRouter();
@@ -15,12 +16,32 @@ export function SignupForm() {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [nameError, setNameError] = useState<string | undefined>(undefined);
+    const [emailError, setEmailError] = useState<string | undefined>(undefined);
+    const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
     const [error, setError] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    function validateForm() {
+        const nextNameError = validateName(name);
+        const nextEmailError = validateEmail(email);
+        const nextPasswordError = validateSignupPassword(password);
+
+        setNameError(nextNameError);
+        setEmailError(nextEmailError);
+        setPasswordError(nextPasswordError);
+
+        return !nextNameError && !nextEmailError && !nextPasswordError;
+    }
 
     async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
         setError(null);
+
+        if (!validateForm()) {
+            return;
+        }
+
         setIsSubmitting(true);
 
         const result = await signup({ name, email, password });
@@ -36,7 +57,7 @@ export function SignupForm() {
     }
 
     return (
-        <form className="space-y-4" onSubmit={onSubmit}>
+        <form className="space-y-5" onSubmit={onSubmit}>
             <Input
                 id="signup-name"
                 label="Name"
@@ -45,9 +66,18 @@ export function SignupForm() {
                 autoComplete="name"
                 placeholder="Your name"
                 value={name}
-                onChange={(event) => setName(event.target.value)}
+                onChange={(event) => {
+                    setName(event.target.value);
+                    if (nameError) {
+                        setNameError(validateName(event.target.value));
+                    }
+                }}
+                onBlur={() => setNameError(validateName(name))}
+                aria-invalid={Boolean(nameError)}
+                className="h-11 rounded-xl border-slate-300 bg-slate-50/60 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:ring-cyan-500"
                 required
             />
+            {nameError ? <p className="-mt-3 text-xs text-red-700">{nameError}</p> : null}
             <Input
                 id="signup-email"
                 label="Email"
@@ -56,9 +86,19 @@ export function SignupForm() {
                 autoComplete="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (emailError) {
+                        setEmailError(validateEmail(event.target.value));
+                    }
+                }}
+                onBlur={() => setEmailError(validateEmail(email))}
+                aria-invalid={Boolean(emailError)}
+                className={`h-11 rounded-xl bg-slate-50/60 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:ring-cyan-500 ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-300"
+                    }`}
                 required
             />
+            {emailError ? <p className="-mt-3 text-xs text-red-700">{emailError}</p> : null}
             <PasswordInput
                 id="signup-password"
                 label="Password"
@@ -66,11 +106,27 @@ export function SignupForm() {
                 autoComplete="new-password"
                 placeholder="At least 8 characters"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (passwordError) {
+                        setPasswordError(validateSignupPassword(event.target.value));
+                    }
+                }}
+                onBlur={() => setPasswordError(validateSignupPassword(password))}
+                aria-invalid={Boolean(passwordError)}
+                className={`h-11 rounded-xl text-slate-900 placeholder:text-slate-400 ${passwordError ? "border-red-400" : ""}`}
                 required
             />
+            {passwordError ? <p className="-mt-3 text-xs text-red-700">{passwordError}</p> : null}
+            <p className="-mt-2 text-xs leading-5 text-slate-500">
+                Use at least 8 characters and avoid reusing passwords from other apps.
+            </p>
             <FormError message={error} />
-            <Button type="submit" isLoading={isSubmitting}>
+            <Button
+                type="submit"
+                isLoading={isSubmitting}
+                className="h-11 rounded-xl bg-cyan-700 text-sm font-semibold tracking-wide hover:bg-cyan-800"
+            >
                 Create account
             </Button>
         </form>

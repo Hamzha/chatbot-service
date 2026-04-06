@@ -8,81 +8,111 @@ export default async function Home() {
   const user = token ? await getCurrentUserFromToken(token) : null;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe_0%,_#f0f9ff_35%,_#f8fafc_70%)] px-4 py-10 sm:px-6 lg:px-8">
-      <section className="mx-auto w-full max-w-6xl rounded-3xl border border-sky-100 bg-white/85 p-6 shadow-[0_18px_60px_-30px_rgba(14,116,144,0.45)] backdrop-blur-sm sm:p-8 lg:p-10">
-        <div className="grid gap-8 lg:grid-cols-[1.3fr_0.9fr] lg:items-start">
-          <div className="space-y-6">
-            <span className="inline-flex rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-              AI Chatbot Platform
-            </span>
+    <main className="relative min-h-screen overflow-hidden bg-slate-100 px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
+      <div className="pointer-events-none absolute -top-16 left-10 h-64 w-64 rounded-full bg-cyan-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-16 right-10 h-64 w-64 rounded-full bg-amber-200/40 blur-3xl" />
 
-            <h1 className="text-balance text-4xl font-semibold leading-tight text-zinc-900 sm:text-5xl">
-              AI-powered chatbot with auth, scraping, and RAG.
-            </h1>
-
-            <p className="max-w-2xl text-base leading-relaxed text-zinc-600 sm:text-lg">
-              Secure authentication, web scraping, and RAG-based PDF Q&A — all
-              in one platform. Sign up to get started.
-            </p>
-
-            <div className="flex flex-wrap gap-3">
-              {user ? (
-                <>
-                  <Link
-                    href="/dashboard"
-                    className="rounded-md bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
-                  >
-                    Open dashboard
-                  </Link>
-                  <LogoutButton />
-                </>
-              ) : (
-                <>
-                  <Link
-                    href="/signup"
-                    className="rounded-md bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-700"
-                  >
-                    Create account
-                  </Link>
-                  <Link
-                    href="/login"
-                    className="rounded-md border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
-                  >
-                    Log in
-                  </Link>
-                </>
-              )}
+      <section className="relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl border border-slate-200 bg-white/90 shadow-[0_24px_70px_rgba(15,23,42,0.14)] backdrop-blur">
+        <header className="border-b border-slate-200 px-6 py-5 sm:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">AI Chatbot Platform</p>
+              <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Build and manage reliable AI chatbot workflows</h1>
             </div>
-
             {user ? (
-              <p className="text-sm text-zinc-600">
-                Signed in as <span className="font-medium text-zinc-800">{user.email}</span>
-              </p>
+              <Link
+                href="/dashboard"
+                className="rounded-xl bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-800"
+              >
+                Go to dashboard
+              </Link>
             ) : (
-              <p className="text-sm text-zinc-500">
-                New user signups require email verification before login.
-              </p>
+              <Link
+                href="/signup"
+                className="rounded-xl bg-cyan-700 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-800"
+              >
+                Start free
+              </Link>
             )}
           </div>
+        </header>
 
-          <aside className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 sm:p-6">
-            <h2 className="text-lg font-semibold text-zinc-900">Platform Features</h2>
-            <ul className="mt-4 space-y-3 text-sm text-zinc-600">
-              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
-                Secure JWT sessions via HTTP-only cookies
-              </li>
-              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
-                MongoDB + Mongoose user persistence
-              </li>
-              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
-                Email verification + forgot/reset password flows
-              </li>
-              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
-                RAG-based PDF Q&A with local LLM
-              </li>
-              <li className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
-                Web scraping (static + dynamic sites)
-              </li>
+        <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1.2fr_0.8fr] lg:gap-10 lg:p-10">
+          <div className="space-y-8">
+            <section className="space-y-5">
+              <h2 className="text-3xl font-semibold leading-tight text-slate-900 sm:text-4xl">
+                From scraped content to production chatbot answers in one secure flow.
+              </h2>
+              <p className="max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+                Authenticate users, ingest web and document data, and deliver RAG-backed answers from a single operational dashboard.
+              </p>
+
+              <div className="flex flex-wrap gap-3">
+                {user ? (
+                  <>
+                    <Link
+                      href="/dashboard"
+                      className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+                    >
+                      Open dashboard
+                    </Link>
+                    <LogoutButton />
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href="/signup"
+                      className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+                    >
+                      Create account
+                    </Link>
+                    <Link
+                      href="/login"
+                      className="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    >
+                      Log in
+                    </Link>
+                  </>
+                )}
+              </div>
+
+              {user ? (
+                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                  Signed in as <span className="font-semibold">{user.email}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500">
+                  New accounts require email verification before first login.
+                </p>
+              )}
+            </section>
+
+            <section className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Authentication</p>
+                <p className="mt-2 text-sm text-slate-700">Secure session cookies with verification and password reset support.</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Ingestion</p>
+                <p className="mt-2 text-sm text-slate-700">Collect data from web scraping and documents with structured pipelines.</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">RAG Answers</p>
+                <p className="mt-2 text-sm text-slate-700">Deliver context-aware replies powered by your indexed knowledge base.</p>
+              </div>
+            </section>
+          </div>
+
+          <aside className="rounded-2xl border border-slate-200 bg-slate-900 p-5 text-slate-100 sm:p-6">
+            <h3 className="text-lg font-semibold text-white">What this landing page means</h3>
+            <p className="mt-3 text-sm leading-6 text-slate-200">
+              This is your front door page, shown at the root URL. It should quickly explain your product and guide users to sign up, log in, or open their dashboard.
+            </p>
+
+            <ul className="mt-5 space-y-3 text-sm">
+              <li className="rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-2">Clear product value in the first screen</li>
+              <li className="rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-2">Strong calls to action for guest and signed-in users</li>
+              <li className="rounded-xl border border-slate-700 bg-slate-800/70 px-3 py-2">Practical feature summary instead of generic filler text</li>
             </ul>
           </aside>
         </div>

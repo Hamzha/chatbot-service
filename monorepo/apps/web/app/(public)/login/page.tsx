@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { AuthCard } from "@repo/auth/components/AuthCard";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 type LoginPageProps = {
     searchParams: Promise<{ message?: string }>;
@@ -11,21 +11,33 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     const infoMessage = params.message === "verify-email" ? "Please verify your email before logging in." : null;
 
     return (
-        <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-4 py-10">
-            <AuthCard title="Welcome back" subtitle="Log in to continue to your dashboard.">
-                <LoginForm infoMessage={infoMessage} />
-                <p className="mt-3 text-sm text-zinc-600">
-                    <Link href="/forgot-password" className="font-medium text-sky-700 hover:text-sky-800">
-                        Forgot your password?
-                    </Link>
-                </p>
-                <p className="mt-4 text-sm text-zinc-600">
+        <AuthShell
+            badge="Secure Access"
+            title="Welcome back"
+            subtitle="Sign in to continue managing your chatbot workflows, documents, and dashboard insights."
+            sideTitle="One login for your full AI operations workspace"
+            sideDescription="Use a secure session to access ingestion jobs, vector search results, and team-managed chatbot configurations."
+            sidePoints={[
+                "Protected dashboard routes with session cookies",
+                "Fast access to chatbot analytics and ingestion jobs",
+                "Secure reset and verification email flow",
+            ]}
+            footer={
+                <p>
                     Do not have an account?{" "}
-                    <Link href="/signup" className="font-medium text-sky-700 hover:text-sky-800">
-                        Sign up
+                    <Link href="/signup" className="font-semibold text-cyan-700 transition hover:text-cyan-900">
+                        Create one now
                     </Link>
+                    .
                 </p>
-            </AuthCard>
-        </main>
+            }
+        >
+            <LoginForm infoMessage={infoMessage} />
+            <p className="-mt-1 text-right text-sm text-slate-600">
+                <Link href="/forgot-password" className="font-semibold text-cyan-700 transition hover:text-cyan-900">
+                    Forgot your password?
+                </Link>
+            </p>
+        </AuthShell>
     );
 }

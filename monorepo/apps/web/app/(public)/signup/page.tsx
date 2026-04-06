@@ -1,19 +1,31 @@
 import Link from "next/link";
-import { AuthCard } from "@repo/auth/components/AuthCard";
 import { SignupForm } from "@/components/auth/SignupForm";
+import { AuthShell } from "@/components/auth/AuthShell";
 
 export default function SignupPage() {
     return (
-        <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-4 py-10">
-            <AuthCard title="Create account" subtitle="Start with a secure session cookie flow.">
-                <SignupForm />
-                <p className="mt-4 text-sm text-zinc-600">
+        <AuthShell
+            badge="Get Started"
+            title="Create your account"
+            subtitle="Set up secure access in less than a minute and start building production-ready chatbot workflows."
+            sideTitle="Launch faster with a workflow-first dashboard"
+            sideDescription="After signup, you can connect your knowledge sources, monitor ingestion jobs, and manage chatbot responses from one place."
+            sidePoints={[
+                "Guided onboarding into chatbot setup",
+                "Email verification for account protection",
+                "Built for teams working on real customer flows",
+            ]}
+            footer={
+                <p>
                     Already have an account?{" "}
-                    <Link href="/login" className="font-medium text-sky-700 hover:text-sky-800">
-                        Log in
+                    <Link href="/login" className="font-semibold text-cyan-700 transition hover:text-cyan-900">
+                        Log in instead
                     </Link>
+                    .
                 </p>
-            </AuthCard>
-        </main>
+            }
+        >
+            <SignupForm />
+        </AuthShell>
     );
 }
