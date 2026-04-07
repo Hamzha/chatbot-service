@@ -5,10 +5,20 @@ class QueryInput(BaseModel):
     user_id: str = Field(min_length=1)
     question: str = Field(min_length=1)
     top_k: int = Field(default=4, ge=1, le=20)
+    conversation_context: str | None = Field(
+        default=None,
+        max_length=20000,
+        description="Prior user/assistant turns; included in the prompt, not used for retrieval.",
+    )
+
 
 class QueryRequest(BaseModel):
     question: str = Field(min_length=1)
     top_k: int = Field(default=4, ge=1, le=20)
+    conversation_context: str | None = Field(
+        default=None,
+        max_length=20000,
+    )
 
 
 class QueryOutput(BaseModel):

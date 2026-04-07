@@ -43,11 +43,19 @@ class QueryRagUseCase:
         question_vector = self.embedder.embed_texts([data.question])[0]
         contexts = self.store.search(question_vector, top_k=data.top_k, user_id=data.user_id)
         context_block = "\n\n".join(f"- {c.text}" for c in contexts)
+        prior = ""
+        if data.conversation_context and data.conversation_context.strip():
+            prior = (
+                "Prior conversation (for follow-up questions; do not contradict without document support):\n"
+                f"{data.conversation_context.strip()}\n\n"
+            )
         prompt = (
-            "Use the following context to answer the question.\n\n"
-            f"Context:\n{context_block}\n\n"
-            f"Question: {data.question}\n"
-            "Answer concisely and only from context."
+            prior
+            + "Use the following document excerpts to answer the current question. "
+            "If the excerpts do not contain the answer, say so.\n\n"
+            f"Document excerpts:\n{context_block}\n\n"
+            f"Current question: {data.question}\n"
+            "Answer concisely; prefer facts from the document excerpts."
         )
         answer = self.generator.generate_answer(prompt)
         return QueryOutput(

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { formatConversationContext } from "@/lib/chatbot/formatConversationContext";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
+import { listChatbotMessages } from "@/lib/db/chatbotMessageRepo";
 
 const CHATBOT_API_BASE =
   process.env.CHATBOT_API_URL ??
@@ -21,7 +23,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = (await request.json()) as { question?: string; top_k?: number };
+  if (typeof body.question !== "string" || !body.question.trim()) {
+    return NextResponse.json({ error: "Missing question" }, { status: 400 });
+  }
+  const priorMessages = await listChatbotMessages(userId, 80);
+  const conversation_context = formatConversationContext(
+    priorMessages.map((m) => ({ role: m.role, content: m.content })),
+  );
+  const payload = {
+    question: body.question.trim(),
+    top_k: body.top_k ?? 4,
+    ...(conversation_context ? { conversation_context } : {}),
+  };
   try {
     const res = await fetch(`${CHATBOT_API_BASE}/v1/query`, {
       method: "POST",
@@ -29,7 +43,7 @@ export async function POST(request: Request) {
         "content-type": "application/json",
         "x-user-id": userId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
     });
     const text = await res.text();
     return proxyChatbotResponse(res, text);

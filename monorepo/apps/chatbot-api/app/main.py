@@ -72,10 +72,16 @@ async def ingest_pdf_fn(ctx: inngest.Context):
     trigger=inngest.TriggerEvent(event="chatbot/query"),
 )
 async def query_fn(ctx: inngest.Context):
+    raw_cc = ctx.event.data.get("conversation_context")
+    cc: str | None = None
+    if raw_cc is not None:
+        s = str(raw_cc).strip()
+        cc = s if s else None
     payload = QueryInput(
         user_id=ctx.event.data["user_id"],
         question=ctx.event.data["question"],
         top_k=int(ctx.event.data.get("top_k", 4)),
+        conversation_context=cc,
     )
     result = await ctx.step.run(
         "query-rag",
@@ -116,10 +122,16 @@ async def ingest(file: UploadFile = File(...), x_user_id: str | None = Header(de
 async def query(body: QueryRequest, x_user_id: str | None = Header(default=None)):
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Missing x-user-id header")
+    cc = body.conversation_context.strip() if body.conversation_context else None
     event_ids = await inngest_client.send(
         inngest.Event(
             name="chatbot/query",
-            data={"user_id": x_user_id, "question": body.question, "top_k": body.top_k},
+            data={
+                "user_id": x_user_id,
+                "question": body.question,
+                "top_k": body.top_k,
+                "conversation_context": cc,
+            },
         )
     )
     return {"event_ids": event_ids}
@@ -129,7 +141,13 @@ async def query(body: QueryRequest, x_user_id: str | None = Header(default=None)
 async def query_sync(body: QueryRequest, x_user_id: str | None = Header(default=None)):
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Missing x-user-id header")
-    payload = QueryInput(user_id=x_user_id, question=body.question, top_k=body.top_k)
+    cc = body.conversation_context.strip() if body.conversation_context else None
+    payload = QueryInput(
+        user_id=x_user_id,
+        question=body.question,
+        top_k=body.top_k,
+        conversation_context=cc,
+    )
     return query_use_case.execute(payload).model_dump()
 
 
