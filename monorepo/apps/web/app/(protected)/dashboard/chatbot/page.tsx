@@ -2,8 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
-const CHATBOT_API_BASE =
-  process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL ?? "http://127.0.0.1:8001";
+import { assertOkJson, parseJsonResponse } from "@/lib/chatbot/parseJsonResponse";
 
 type JobStatus = {
   status: string;
@@ -15,8 +14,9 @@ type JobStatus = {
 
 async function pollJob(eventId: string): Promise<JobStatus> {
   for (let i = 0; i < 60; i += 1) {
-    const res = await fetch(`${CHATBOT_API_BASE}/v1/jobs/${eventId}`);
-    const data = (await res.json()) as JobStatus;
+    const res = await fetch(`/api/chatbot/jobs/${eventId}`);
+    const data = await parseJsonResponse<JobStatus>(res);
+    assertOkJson(res, data);
     if (["Completed", "Succeeded", "Success", "Finished"].includes(data.status)) {
       return data;
     }
@@ -40,13 +40,14 @@ export default function ChatbotPage() {
     setSources([]);
 
     try {
-      const res = await fetch(`${CHATBOT_API_BASE}/v1/query`, {
+      const res = await fetch("/api/chatbot/query", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ question, top_k: 4 }),
       });
-      const { event_ids } = (await res.json()) as { event_ids: string[] };
-      const eventId = event_ids[0];
+      const body = await parseJsonResponse<{ event_ids?: string[] }>(res);
+      assertOkJson(res, body);
+      const eventId = body.event_ids?.[0];
       if (!eventId) {
         throw new Error("No query event ID returned from chatbot API.");
       }

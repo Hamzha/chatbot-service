@@ -2,6 +2,11 @@ from pydantic import BaseModel, Field
 
 
 class QueryInput(BaseModel):
+    user_id: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    top_k: int = Field(default=4, ge=1, le=20)
+
+class QueryRequest(BaseModel):
     question: str = Field(min_length=1)
     top_k: int = Field(default=4, ge=1, le=20)
 
@@ -13,6 +18,7 @@ class QueryOutput(BaseModel):
 
 
 class IngestInput(BaseModel):
+    user_id: str = Field(min_length=1)
     pdf_path: str = Field(min_length=1)
     source_id: str = Field(min_length=1)
 

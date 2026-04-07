@@ -8,8 +8,8 @@ from app.providers import Embedder, Generator
 from app.vector_store import ChromaVectorStore
 
 
-def _deterministic_id(source_id: str, i: int) -> str:
-    return hashlib.sha256(f"{source_id}:{i}".encode("utf-8")).hexdigest()[:32]
+def _deterministic_id(user_id: str, source_id: str, i: int) -> str:
+    return hashlib.sha256(f"{user_id}:{source_id}:{i}".encode("utf-8")).hexdigest()[:32]
 
 
 class IngestPdfUseCase:
@@ -22,8 +22,14 @@ class IngestPdfUseCase:
         if not chunks:
             return IngestOutput(ingested=0, source=data.source_id)
         vectors = self.embedder.embed_texts(chunks)
-        ids = [_deterministic_id(data.source_id, i) for i in range(len(chunks))]
-        self.store.upsert(ids=ids, vectors=vectors, docs=chunks, sources=[data.source_id] * len(chunks))
+        ids = [_deterministic_id(data.user_id, data.source_id, i) for i in range(len(chunks))]
+        self.store.upsert(
+            ids=ids,
+            vectors=vectors,
+            docs=chunks,
+            sources=[data.source_id] * len(chunks),
+            user_ids=[data.user_id] * len(chunks),
+        )
         return IngestOutput(ingested=len(chunks), source=data.source_id)
 
 
@@ -35,7 +41,7 @@ class QueryRagUseCase:
 
     def execute(self, data: QueryInput) -> QueryOutput:
         question_vector = self.embedder.embed_texts([data.question])[0]
-        contexts = self.store.search(question_vector, top_k=data.top_k)
+        contexts = self.store.search(question_vector, top_k=data.top_k, user_id=data.user_id)
         context_block = "\n\n".join(f"- {c.text}" for c in contexts)
         prompt = (
             "Use the following context to answer the question.\n\n"

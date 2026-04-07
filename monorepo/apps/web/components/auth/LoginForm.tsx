@@ -17,8 +17,8 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
     const router = useRouter();
     const { login } = useAuth();
 
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const [email, setEmail] = useState("test@example.com");
+    const [password, setPassword] = useState("test@examplpe");
     const [emailError, setEmailError] = useState<string | undefined>(undefined);
     const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
     const [error, setError] = useState<string | null>(null);

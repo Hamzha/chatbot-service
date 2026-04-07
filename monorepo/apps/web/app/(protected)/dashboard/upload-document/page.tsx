@@ -1,9 +1,13 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import { useEffect } from "react";
 
-const CHATBOT_API_BASE =
-  process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL ?? "http://127.0.0.1:8001";
+import {
+  assertOkJson,
+  formatApiErrorMessage,
+  parseJsonResponse,
+} from "@/lib/chatbot/parseJsonResponse";
 
 type JobStatus = {
   status: string;
@@ -13,10 +17,16 @@ type JobStatus = {
   } | null;
 };
 
+type SourceItem = {
+  source: string;
+  chunks: number;
+};
+
 async function pollJob(eventId: string): Promise<JobStatus> {
   for (let i = 0; i < 60; i += 1) {
-    const res = await fetch(`${CHATBOT_API_BASE}/v1/jobs/${eventId}`);
-    const data = (await res.json()) as JobStatus;
+    const res = await fetch(`/api/chatbot/jobs/${eventId}`);
+    const data = await parseJsonResponse<JobStatus>(res);
+    assertOkJson(res, data);
     if (["Completed", "Succeeded", "Success", "Finished"].includes(data.status)) {
       return data;
     }
@@ -29,6 +39,34 @@ export default function UploadDocumentPage() {
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState("");
+  const [sources, setSources] = useState<SourceItem[]>([]);
+  const [loadingSources, setLoadingSources] = useState(true);
+  const [deletingSource, setDeletingSource] = useState<string | null>(null);
+  const [listError, setListError] = useState<string | null>(null);
+
+  async function loadSources() {
+    setLoadingSources(true);
+    setListError(null);
+    try {
+      const res = await fetch("/api/chatbot/documents");
+      const data = await parseJsonResponse<{ sources?: SourceItem[] }>(res);
+      if (!res.ok) {
+        setSources([]);
+        setListError(formatApiErrorMessage(data, res.status));
+        return;
+      }
+      setSources(data.sources ?? []);
+    } catch (err) {
+      setSources([]);
+      setListError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingSources(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSources();
+  }, []);
 
   async function onUpload(e: FormEvent) {
     e.preventDefault();
@@ -40,12 +78,13 @@ export default function UploadDocumentPage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${CHATBOT_API_BASE}/v1/ingest`, {
+      const res = await fetch("/api/chatbot/ingest", {
         method: "POST",
         body: fd,
       });
-      const { event_ids } = (await res.json()) as { event_ids: string[] };
-      const eventId = event_ids[0];
+      const body = await parseJsonResponse<{ event_ids?: string[] }>(res);
+      assertOkJson(res, body);
+      const eventId = body.event_ids?.[0];
       if (!eventId) {
         throw new Error("No ingestion event ID returned from chatbot API.");
       }
@@ -56,9 +95,50 @@ export default function UploadDocumentPage() {
           ? `Ingested ${job.output.ingested} chunks from ${job.output.source ?? file.name}`
           : `Status: ${job.status}`
       );
+      if (
+        job.output?.ingested != null &&
+        ["Completed", "Succeeded", "Success", "Finished"].includes(job.status)
+      ) {
+        const recordRes = await fetch("/api/chatbot/documents", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            source: job.output.source ?? file.name,
+            chunks: job.output.ingested,
+          }),
+        });
+        if (!recordRes.ok) {
+          const errBody = await parseJsonResponse<unknown>(recordRes).catch(() => null);
+          const msg = errBody
+            ? formatApiErrorMessage(errBody, recordRes.status)
+            : `Could not save document record (${recordRes.status})`;
+          setResult((prev) => `${prev}\n${msg}`);
+        }
+      }
+      await loadSources();
     } catch (err) {
       setStatus("error");
       setResult(String(err));
+    }
+  }
+
+  async function onDeleteSource(source: string) {
+    setDeletingSource(source);
+    setListError(null);
+    try {
+      const res = await fetch(`/api/chatbot/documents/${encodeURIComponent(source)}`, {
+        method: "DELETE",
+      });
+      const data = await parseJsonResponse<unknown>(res);
+      if (!res.ok) {
+        setListError(formatApiErrorMessage(data, res.status));
+        return;
+      }
+      await loadSources();
+    } catch (err) {
+      setListError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDeletingSource(null);
     }
   }
 
@@ -94,6 +174,49 @@ export default function UploadDocumentPage() {
       <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm max-w-2xl">
         <p className="text-sm text-zinc-600">Job status: {status}</p>
         <p className="mt-1 text-zinc-900">{result}</p>
+      </div>
+
+      {listError && (
+        <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 max-w-3xl">
+          <p className="font-medium">Chatbot backend unreachable</p>
+          <p className="mt-1 whitespace-pre-wrap">{listError}</p>
+          <p className="mt-2 text-xs text-amber-900">
+            From the monorepo root, start the API (port 8001 by default), then ensure{" "}
+            <code className="rounded bg-amber-100/80 px-1">CHATBOT_API_URL</code> in the web app matches
+            that URL.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm max-w-3xl">
+        <h2 className="text-lg font-medium text-zinc-900">My Documents</h2>
+        {loadingSources ? (
+          <p className="mt-2 text-sm text-zinc-500">Loading...</p>
+        ) : sources.length === 0 ? (
+          <p className="mt-2 text-sm text-zinc-500">No documents uploaded yet.</p>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {sources.map((item) => (
+              <div
+                key={item.source}
+                className="flex items-center justify-between rounded-lg border border-zinc-200 px-3 py-2"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-zinc-900">{item.source}</p>
+                  <p className="text-xs text-zinc-500">{item.chunks} chunks</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDeleteSource(item.source)}
+                  disabled={deletingSource === item.source}
+                  className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                >
+                  {deletingSource === item.source ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

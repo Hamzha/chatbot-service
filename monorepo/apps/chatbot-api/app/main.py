@@ -7,11 +7,18 @@ from pathlib import Path
 import inngest
 import inngest.fast_api
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.exception_handlers import (
+    http_exception_handler,
+    request_validation_exception_handler,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.requests import Request
 
 from app.config import settings
-from app.contracts import IngestInput, QueryInput
+from app.contracts import IngestInput, QueryInput, QueryRequest
 from app.engine import IngestPdfUseCase, QueryRagUseCase
 from app.providers import build_provider_clients
 from app.vector_store import ChromaVectorStore
@@ -49,6 +56,7 @@ inngest_client = inngest.Inngest(
 )
 async def ingest_pdf_fn(ctx: inngest.Context):
     payload = IngestInput(
+        user_id=ctx.event.data["user_id"],
         pdf_path=ctx.event.data["pdf_path"],
         source_id=ctx.event.data["source_id"],
     )
@@ -65,6 +73,7 @@ async def ingest_pdf_fn(ctx: inngest.Context):
 )
 async def query_fn(ctx: inngest.Context):
     payload = QueryInput(
+        user_id=ctx.event.data["user_id"],
         question=ctx.event.data["question"],
         top_k=int(ctx.event.data.get("top_k", 4)),
     )
@@ -84,7 +93,9 @@ def health() -> dict[str, str]:
 
 
 @app.post("/v1/ingest")
-async def ingest(file: UploadFile = File(...)):
+async def ingest(file: UploadFile = File(...), x_user_id: str | None = Header(default=None)):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
     uploads_dir = Path("uploads")
@@ -95,26 +106,31 @@ async def ingest(file: UploadFile = File(...)):
     event_ids = await inngest_client.send(
         inngest.Event(
             name="chatbot/ingest_pdf",
-            data={"pdf_path": str(target), "source_id": file.filename},
+            data={"user_id": x_user_id, "pdf_path": str(target), "source_id": file.filename},
         )
     )
     return {"event_ids": event_ids, "source_id": file.filename}
 
 
 @app.post("/v1/query")
-async def query(body: QueryInput):
+async def query(body: QueryRequest, x_user_id: str | None = Header(default=None)):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
     event_ids = await inngest_client.send(
         inngest.Event(
             name="chatbot/query",
-            data={"question": body.question, "top_k": body.top_k},
+            data={"user_id": x_user_id, "question": body.question, "top_k": body.top_k},
         )
     )
     return {"event_ids": event_ids}
 
 
 @app.post("/v1/query/sync")
-async def query_sync(body: QueryInput):
-    return query_use_case.execute(body).model_dump()
+async def query_sync(body: QueryRequest, x_user_id: str | None = Header(default=None)):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+    payload = QueryInput(user_id=x_user_id, question=body.question, top_k=body.top_k)
+    return query_use_case.execute(payload).model_dump()
 
 
 @app.get("/v1/jobs/{event_id}")
@@ -134,4 +150,38 @@ async def get_job(event_id: str):
         return {"status": "pending", "output": None}
     run = runs[0]
     return {"status": run.get("status"), "output": run.get("output")}
+
+
+@app.get("/v1/sources")
+async def list_sources(x_user_id: str | None = Header(default=None)):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+    return {"sources": store.list_sources(x_user_id)}
+
+
+@app.delete("/v1/sources/{source_id}")
+async def delete_source(source_id: str, x_user_id: str | None = Header(default=None)):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+    deleted = store.delete_source(user_id=x_user_id, source_id=source_id)
+    return {"deleted_chunks": deleted, "source": source_id}
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Return JSON on 500 so proxies and clients can parse errors (not HTML/plain)."""
+    if isinstance(exc, HTTPException):
+        return await http_exception_handler(request, exc)
+    if isinstance(exc, RequestValidationError):
+        return await request_validation_exception_handler(request, exc)
+    import traceback
+
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"{type(exc).__name__}: {exc}",
+            "error": "internal_server_error",
+        },
+    )
 
