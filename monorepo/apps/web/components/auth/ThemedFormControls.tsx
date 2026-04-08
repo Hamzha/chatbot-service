@@ -1,7 +1,7 @@
 import { FormButton as Button } from "@repo/ui/form-button";
 import { Input } from "@repo/ui/input";
 import { PasswordInput } from "@repo/ui/password-input";
-import { themeClasses } from "@/lib/theme";
+import { themedFormControlsThemeClasses } from "@/lib/theme/components/themed-form-controls.theme";
 
 type BaseFieldProps = {
     error?: string;
@@ -19,7 +19,7 @@ export function AuthTextField({ error, className = "", ...props }: TextFieldProp
     return (
         <Input
             {...props}
-            className={`${themeClasses.inputBase} ${error ? themeClasses.inputError : ""} ${className}`.trim()}
+            className={`${themedFormControlsThemeClasses.inputBase} ${error ? themedFormControlsThemeClasses.inputError : ""} ${className}`.trim()}
         />
     );
 }
@@ -28,7 +28,7 @@ export function AuthPasswordField({ error, className = "", ...props }: PasswordF
     return (
         <PasswordInput
             {...props}
-            className={`${themeClasses.inputBase} ${error ? themeClasses.inputError : ""} ${className}`.trim()}
+            className={`${themedFormControlsThemeClasses.inputBase} ${error ? themedFormControlsThemeClasses.inputError : ""} ${className}`.trim()}
         />
     );
 }
@@ -37,20 +37,20 @@ export function FieldError({ message }: { message?: string }) {
     if (!message) {
         return null;
     }
-    return <p className={themeClasses.errorText}>{message}</p>;
+    return <p className={themedFormControlsThemeClasses.errorText}>{message}</p>;
 }
 
 export function AuthInfoMessage({ message }: { message?: string | null }) {
     if (!message) {
         return null;
     }
-    return <p className={themeClasses.infoMessage}>{message}</p>;
+    return <p className={themedFormControlsThemeClasses.infoMessage}>{message}</p>;
 }
 
 export function AuthPasswordHint({ children }: { children: React.ReactNode }) {
-    return <p className={themeClasses.passwordHint}>{children}</p>;
+    return <p className={themedFormControlsThemeClasses.passwordHint}>{children}</p>;
 }
 
 export function AuthSubmitButton({ className = "", ...props }: SubmitButtonProps) {
-    return <Button {...props} className={`${themeClasses.submitButton} ${className}`.trim()} />;
+    return <Button {...props} className={`${themedFormControlsThemeClasses.submitButton} ${className}`.trim()} />;
 }

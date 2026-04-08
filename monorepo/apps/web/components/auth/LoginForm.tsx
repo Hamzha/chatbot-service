@@ -12,6 +12,7 @@ import {
     AuthTextField,
     FieldError,
 } from "@/components/auth/ThemedFormControls";
+import { loginFormThemeClasses } from "@/lib/theme/components/login-form.theme";
 
 type LoginFormProps = {
     infoMessage?: string | null;
@@ -61,7 +62,7 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
     }
 
     return (
-        <form className="space-y-5" onSubmit={onSubmit}>
+        <form className={loginFormThemeClasses.form} onSubmit={onSubmit}>
             <AuthTextField
                 id="login-email"
                 label="Email"

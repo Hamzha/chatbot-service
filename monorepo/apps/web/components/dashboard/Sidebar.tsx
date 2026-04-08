@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { ThemedStrongCard } from "@/components/theme/ThemedPrimitives";
+import { sidebarThemeClasses } from "@/lib/theme/components/sidebar.theme";
 
 const navItems = [
   {
@@ -54,13 +55,13 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <ThemedStrongCard className="fixed bottom-4 left-4 top-4 flex w-60 flex-col overflow-hidden">
-      <div className="p-6 border-b border-white/30">
-        <h1 className="text-lg font-semibold text-slate-900">AI Chatbot</h1>
-        <p className="text-sm text-slate-500 mt-1">Dashboard</p>
+    <ThemedStrongCard className={sidebarThemeClasses.root}>
+      <div className={sidebarThemeClasses.header}>
+        <h1 className={sidebarThemeClasses.title}>AI Chatbot</h1>
+        <p className={sidebarThemeClasses.subtitle}>Dashboard</p>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className={sidebarThemeClasses.nav}>
         {navItems.map((item) => {
           const isActive =
             item.href === "/dashboard"
@@ -71,9 +72,9 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive
-                  ? "glass border-brand-300/60 text-brand-800 shadow-sm"
-                  : "text-slate-600 hover:bg-white/40 hover:text-slate-900"
+              className={`${sidebarThemeClasses.navItem} ${isActive
+                ? sidebarThemeClasses.navItemActive
+                : sidebarThemeClasses.navItemInactive
                 }`}
             >
               {item.icon}
@@ -83,10 +84,10 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/30">
-        <div className="mb-3">
-          <p className="text-sm font-medium text-slate-900 truncate">{userName}</p>
-          <p className="text-xs text-slate-500 truncate">{userEmail}</p>
+      <div className={sidebarThemeClasses.footer}>
+        <div className={sidebarThemeClasses.profileWrap}>
+          <p className={sidebarThemeClasses.profileName}>{userName}</p>
+          <p className={sidebarThemeClasses.profileEmail}>{userEmail}</p>
         </div>
         <LogoutButton />
       </div>

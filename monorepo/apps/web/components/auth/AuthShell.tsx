@@ -1,4 +1,5 @@
 import type { PropsWithChildren, ReactNode } from "react";
+import { authShellThemeClasses } from "@/lib/theme/components/auth-shell.theme";
 
 type AuthShellProps = PropsWithChildren<{
     badge: string;
@@ -21,40 +22,40 @@ export function AuthShell({
     children,
 }: AuthShellProps) {
     return (
-        <main className="relative min-h-screen overflow-hidden px-4 py-8 sm:px-6 sm:py-10">
-            <section className="glass-strong relative mx-auto grid w-full max-w-6xl overflow-hidden rounded-3xl lg:grid-cols-[1fr_1.05fr]">
-                <aside className="glass-dark relative hidden p-10 lg:flex lg:flex-col lg:justify-between">
-                    <div className="space-y-4">
-                        <span className="inline-flex items-center rounded-full border border-brand-300/40 bg-brand-300/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-brand-100 backdrop-blur">
+        <main className={authShellThemeClasses.root}>
+            <section className={authShellThemeClasses.shell}>
+                <aside className={authShellThemeClasses.sidePanel}>
+                    <div className={authShellThemeClasses.sideSection}>
+                        <span className={authShellThemeClasses.sideBadge}>
                             {badge}
                         </span>
-                        <h2 className="max-w-sm text-3xl font-semibold leading-tight text-white">{sideTitle}</h2>
-                        <p className="max-w-md text-sm leading-6 text-slate-200">{sideDescription}</p>
+                        <h2 className={authShellThemeClasses.sideTitle}>{sideTitle}</h2>
+                        <p className={authShellThemeClasses.sideDescription}>{sideDescription}</p>
                     </div>
 
-                    <ul className="space-y-3">
+                    <ul className={authShellThemeClasses.pointsList}>
                         {sidePoints.map((point) => (
-                            <li key={point} className="flex items-start gap-3 text-sm text-slate-100/90">
-                                <span className="mt-1 inline-block h-2 w-2 rounded-full bg-brand-300" aria-hidden="true" />
+                            <li key={point} className={authShellThemeClasses.pointItem}>
+                                <span className={authShellThemeClasses.pointBullet} aria-hidden="true" />
                                 <span>{point}</span>
                             </li>
                         ))}
                     </ul>
                 </aside>
 
-                <div className="flex items-center justify-center p-5 sm:p-8 lg:p-12">
-                    <section className="glass w-full max-w-md space-y-6 rounded-2xl p-6 sm:p-8">
-                        <div className="space-y-2">
-                            <span className="inline-flex items-center rounded-full bg-slate-900/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
+                <div className={authShellThemeClasses.contentWrap}>
+                    <section className={authShellThemeClasses.contentCard}>
+                        <div className={authShellThemeClasses.headerBlock}>
+                            <span className={authShellThemeClasses.mainBadge}>
                                 {badge}
                             </span>
-                            <h1 className="text-3xl font-semibold leading-tight text-slate-900">{title}</h1>
-                            <p className="text-sm leading-6 text-slate-600">{subtitle}</p>
+                            <h1 className={authShellThemeClasses.title}>{title}</h1>
+                            <p className={authShellThemeClasses.subtitle}>{subtitle}</p>
                         </div>
 
                         {children}
 
-                        {footer ? <div className="border-t border-white/30 pt-4 text-sm text-slate-600">{footer}</div> : null}
+                        {footer ? <div className={authShellThemeClasses.footer}>{footer}</div> : null}
                     </section>
                 </div>
             </section>

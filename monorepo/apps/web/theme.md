@@ -1,228 +1,167 @@
 # Theme System Guide
 
-This document explains the complete theme architecture used in the web app, how reusable UI primitives are structured, and how to safely extend the system.
+This project uses a component-level theme structure.
 
-## Purpose
+Goal:
 
-The goal of this pattern is to keep visual styling centralized and reusable:
+- Global design tokens are centralized.
+- Every reusable component has its own theme file.
+- Feature code uses component wrappers, not repeated class bundles.
 
-- One source of truth for theme tokens.
-- One runtime injector for CSS variables.
-- Reusable primitives for repeated UI patterns.
-- Feature pages focused on behavior, not styling duplication.
+## Theme Folder Structure
 
-## Source Of Truth
+- lib/theme/tokens.ts
+- lib/theme/index.ts
+- lib/theme/components/themed-form-controls.theme.ts
+- lib/theme/components/themed-primitives.theme.ts
+- lib/theme/components/auth-shell.theme.ts
+- lib/theme/components/login-form.theme.ts
+- lib/theme/components/signup-form.theme.ts
+- lib/theme/components/logout-button.theme.ts
+- lib/theme/components/sidebar.theme.ts
+- lib/theme/components/dashboard.theme.ts
+- lib/theme/components/landing.theme.ts
 
-Main theme token file:
+## Runtime And CSS Infrastructure
 
-- lib/theme.ts
+- Runtime injector: lib/ThemeProvider.tsx
+- Tailwind mapping/utilities: app/globals.css
 
 Important:
 
-- Edit values in lib/theme.ts only.
-- app/globals.css is infrastructure (Tailwind token mapping + fallback), not the primary editing surface.
+- Do not remove app/globals.css.
+- Edit token values in lib/theme/tokens.ts.
+- Edit component styling in the matching lib/theme/components/\*.theme.ts file.
 
-Main runtime provider:
+## Global Tokens
 
-- lib/ThemeProvider.tsx
+File: lib/theme/tokens.ts
 
-Global utility layer:
+Export:
 
-- app/globals.css
+- themeConfig
 
-Reusable primitives:
+Current token API:
 
-- components/auth/ThemedFormControls.tsx
-- components/theme/ThemedPrimitives.tsx
+- themeConfig.colors.brand[50..900]
+- themeConfig.colors.background
+- themeConfig.colors.surface
+- themeConfig.colors.surfaceStrong
+- themeConfig.colors.surfaceMuted
+- themeConfig.colors.surfaceDark
+- themeConfig.colors.ink
+- themeConfig.colors.inkMuted
+- themeConfig.colors.hairline
+- themeConfig.colors.hairlineStrong
+- themeConfig.colors.success
+- themeConfig.colors.warning
+- themeConfig.colors.danger
+- themeConfig.background.gradients[]
 
-## High-Level Flow
+## Component-Level Theme Files
 
-1. Theme tokens are defined in lib/theme.ts.
-2. ThemeProvider reads those tokens and injects CSS variables on app load.
-3. globals.css consumes these variables through Tailwind utilities and custom utility classes.
-4. Reusable primitives encapsulate class combinations.
-5. Pages import primitives instead of repeating class strings.
+Each reusable component now has a dedicated theme config file.
 
-## Theme Tokens
+1. components/auth/ThemedFormControls.tsx
 
-### File: lib/theme.ts
+- theme file: lib/theme/components/themed-form-controls.theme.ts
+- export used: themedFormControlsThemeClasses
+
+2. components/theme/ThemedPrimitives.tsx
+
+- theme file: lib/theme/components/themed-primitives.theme.ts
+- export used: themedPrimitivesThemeClasses
+
+3. components/auth/AuthShell.tsx
+
+- theme file: lib/theme/components/auth-shell.theme.ts
+- export used: authShellThemeClasses
+
+4. components/auth/LoginForm.tsx
+
+- theme file: lib/theme/components/login-form.theme.ts
+- export used: loginFormThemeClasses
+
+5. components/auth/SignupForm.tsx
+
+- theme file: lib/theme/components/signup-form.theme.ts
+- export used: signupFormThemeClasses
+
+6. components/auth/LogoutButton.tsx
+
+- theme file: lib/theme/components/logout-button.theme.ts
+- export used: logoutButtonThemeClasses
+
+7. components/dashboard/Sidebar.tsx
+
+- theme file: lib/theme/components/sidebar.theme.ts
+- export used: sidebarThemeClasses
+
+Reserved component theme files:
+
+- lib/theme/components/dashboard.theme.ts
+- lib/theme/components/landing.theme.ts
+
+These are placeholders for future dashboard/landing-specific reusable components.
+
+## Theme Index Exports
+
+File: lib/theme/index.ts
 
 Exports:
 
 - themeConfig
-- themeClasses
+- themedFormControlsThemeClasses
+- themedPrimitivesThemeClasses
+- authShellThemeClasses
+- loginFormThemeClasses
+- signupFormThemeClasses
+- logoutButtonThemeClasses
+- sidebarThemeClasses
+- dashboardThemeClasses
+- landingThemeClasses
 
-### themeConfig
+## How Theme Variables Work
 
-Current token structure:
+1. ThemeProvider reads themeConfig from lib/theme/tokens.ts.
+2. ThemeProvider injects runtime CSS vars in --theme-\* namespace.
+3. app/globals.css maps Tailwind --color-_ tokens to --theme-_ vars.
+4. Tailwind classes (bg-brand-700, text-brand-700, etc.) keep working.
+5. Custom @utility classes (glass, glass-strong, glass-input) keep working.
 
-- colors.brand (50-900)
-- colors.background
-- colors.surface
-- colors.surfaceStrong
-- colors.surfaceMuted
-- colors.surfaceDark
-- colors.ink
-- colors.inkMuted
-- colors.hairline
-- colors.hairlineStrong
-- colors.success
-- colors.warning
-- colors.danger
-- background.gradients
+## Development Rules
 
-### themeClasses
+- For token changes, edit only lib/theme/tokens.ts.
+- For component style changes, edit that component's dedicated \*.theme.ts file.
+- Do not hardcode long class bundles in feature pages.
+- If you create a new reusable component, also create its own theme file.
+- Export new theme modules from lib/theme/index.ts.
 
-Shared auth class presets:
+## Adding A New Reusable Component (Required Pattern)
 
-- inputBase
-- inputError
-- errorText
-- submitButton
-- infoMessage
-- passwordHint
+Example component: NotificationBadge
 
-Use themeClasses only for reusable wrappers, not directly in feature pages unless necessary.
+1. Create component:
 
-## Runtime Injection
+- components/common/NotificationBadge.tsx
 
-### File: lib/ThemeProvider.tsx
+2. Create matching theme file:
 
-Exports:
+- lib/theme/components/notification-badge.theme.ts
 
-- ThemeProvider
-- useTheme
+3. Export class map:
 
-Behavior:
+- export const notificationBadgeThemeClasses = { ... } as const
 
-- Creates React context with themeConfig.
-- Injects CSS custom properties into document root using the --theme-\* namespace.
-- Sets brand token variables and semantic variables.
-- Applies background color and radial gradient from themeConfig to body.
+4. Import classes in component and apply class names.
 
-Expected usage:
+5. Export from lib/theme/index.ts.
 
-- Root app layout wraps children with ThemeProvider in app/layout.tsx.
+6. Add docs entry to this file.
 
-## Global CSS Layer
+## Current Adoption
 
-### File: app/globals.css
-
-Responsibilities:
-
-- Tailwind v4 import and @theme fallback variables.
-- Base html/body typography and minimum height.
-- Shared glass utilities:
-  - glass
-  - glass-strong
-  - glass-muted
-  - glass-dark
-  - glass-input
-
-Important rule:
-
-- Keep fallback @theme values aligned with themeConfig to avoid visual mismatch during initial paint.
-
-## Reusable Component APIs
-
-## Auth Primitives
-
-### File: components/auth/ThemedFormControls.tsx
-
-1. AuthTextField
-
-- Wraps Input
-- Props: Input props + error?: string
-- Adds base input classes and error variant classes
-
-2. AuthPasswordField
-
-- Wraps PasswordInput
-- Props: PasswordInput props + error?: string
-- Adds base input classes and error variant classes
-
-3. FieldError
-
-- Props: message?: string
-- Renders nothing when message is empty
-
-4. AuthInfoMessage
-
-- Props: message?: string | null
-- Renders nothing when message is empty
-
-5. AuthPasswordHint
-
-- Props: children: React.ReactNode
-- Renders helper text style
-
-6. AuthSubmitButton
-
-- Wraps FormButton
-- Props: FormButton props
-- Uses themeClasses.submitButton
-
-## Generic Theme Primitives
-
-### File: components/theme/ThemedPrimitives.tsx
-
-1. ThemedCard
-
-- Wraps div
-- Props: div props + className
-- Base: glass rounded-2xl
-
-2. ThemedStrongCard
-
-- Wraps div
-- Props: div props + className
-- Base: glass-strong rounded-2xl
-
-3. ThemedInput
-
-- Wraps input
-- Props: input props + className
-- Shared input classes with focus ring behavior
-
-4. ThemedSelect
-
-- Wraps select
-- Props: select props + className
-- Shared select classes with focus ring behavior
-
-5. ThemedPrimaryButton
-
-- Wraps button
-- Props: button props + className
-- Brand filled action style
-
-6. ThemedGhostButton
-
-- Wraps button
-- Props: button props + className
-- Glass ghost action style
-
-7. ThemedDangerButton
-
-- Wraps button
-- Props: button props + className
-- Danger bordered action style
-
-8. ThemedPrimaryLink
-
-- Wraps Next Link
-- Props: Link props + className
-- Brand filled CTA style
-
-9. ThemedGhostLink
-
-- Wraps Next Link
-- Props: Link props + className
-- Glass ghost link style
-
-## Route Adoption Matrix
-
-The following pages/components are already migrated to the reusable pattern.
+Reusable component-level theming is applied across:
 
 Auth/Public:
 
@@ -235,68 +174,24 @@ Auth/Public:
 - components/auth/LoginForm.tsx
 - components/auth/SignupForm.tsx
 - components/auth/AuthShell.tsx
+- components/auth/LogoutButton.tsx
+- components/auth/ThemedFormControls.tsx
 
-Protected Dashboard:
+Dashboard:
 
 - app/(protected)/dashboard/page.tsx
 - app/(protected)/dashboard/scraper/page.tsx
 - app/(protected)/dashboard/chatbot/page.tsx
 - app/(protected)/dashboard/upload-document/page.tsx
 - components/dashboard/Sidebar.tsx
+- components/theme/ThemedPrimitives.tsx
 
-## How To Add A New Theme Token
+## Quick Troubleshooting
 
-1. Add token to lib/theme.ts under themeConfig.
-2. Inject corresponding CSS variable in lib/ThemeProvider.tsx.
-3. If token should be available at build-time utility level, keep fallback in app/globals.css @theme aligned.
-4. Prefer creating or extending a reusable primitive before using token directly in many feature files.
-5. Update this document after introducing new token groups.
+If styles break:
 
-## How To Add A New Reusable Primitive
-
-1. Decide location:
-
-- Auth-specific primitive: components/auth/ThemedFormControls.tsx
-- Generic primitive: components/theme/ThemedPrimitives.tsx
-
-2. Keep API small and predictable:
-
-- Accept native/base component props.
-- Accept optional className override.
-- Merge className at the end.
-
-3. Replace duplicated usage in feature pages.
-
-4. Document primitive name, props, and behavior in this file.
-
-## Development Rules
-
-- Do not duplicate long Tailwind class strings across feature pages.
-- Do not bypass ThemeProvider for global token wiring.
-- Keep visual styles in primitives and token files.
-- Keep business logic in feature pages/components.
-- Prefer semantic wrappers over ad-hoc utility combinations.
-
-## Troubleshooting
-
-If theme updates do not appear:
-
-1. Confirm ThemeProvider wraps app in app/layout.tsx.
-2. Confirm token was added to lib/theme.ts.
-3. Confirm variable injection exists in lib/ThemeProvider.tsx.
-4. Confirm CSS utility references correct variable names.
-5. Confirm fallback variables in app/globals.css are aligned.
-
-If style inconsistency appears:
-
-1. Search for duplicated hardcoded class strings in feature pages.
-2. Move repeated patterns into themed primitives.
-3. Re-check this document and update adoption matrix.
-
-## Quick Checklist For PR Review
-
-- Token change documented in lib/theme.ts.
-- Injection path updated in lib/ThemeProvider.tsx.
-- No repeated long class strings introduced.
-- Reusable primitive used where applicable.
-- theme.md updated when architecture/API changed.
+1. Check ThemeProvider is mounted in app/layout.tsx.
+2. Check lib/theme/tokens.ts for missing token values.
+3. Check component imports the correct \*.theme.ts file.
+4. Check app/globals.css still contains @theme mapping and @utility blocks.
+5. Check lib/theme/index.ts exports are up to date.

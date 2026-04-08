@@ -1,0 +1,36 @@
+export const themeConfig = {
+    colors: {
+        brand: {
+            50: "#ecfeff",
+            100: "#cffafe",
+            200: "#a5f3fc",
+            300: "#67e8f9",
+            400: "#22d3ee",
+            500: "#06b6d4",
+            600: "#0891b2",
+            700: "#0e7490",
+            800: "#155e75",
+            900: "#164e63",
+        },
+        background: "#eef2f7",
+        surface: "rgba(255, 255, 255, 0.65)",
+        surfaceStrong: "rgba(255, 255, 255, 0.82)",
+        surfaceMuted: "rgba(255, 255, 255, 0.45)",
+        surfaceDark: "rgba(15, 23, 42, 0.78)",
+        ink: "#0f172a",
+        inkMuted: "#475569",
+        hairline: "rgba(148, 163, 184, 0.35)",
+        hairlineStrong: "rgba(148, 163, 184, 0.55)",
+        success: "#059669",
+        warning: "#d97706",
+        danger: "#e11d48",
+    },
+    background: {
+        gradients: [
+            "radial-gradient(at 12% 8%, rgba(34, 211, 238, 0.28) 0px, transparent 55%)",
+            "radial-gradient(at 88% 12%, rgba(251, 191, 36, 0.22) 0px, transparent 55%)",
+            "radial-gradient(at 70% 92%, rgba(99, 102, 241, 0.22) 0px, transparent 55%)",
+            "radial-gradient(at 18% 88%, rgba(16, 185, 129, 0.18) 0px, transparent 55%)",
+        ],
+    },
+} as const;

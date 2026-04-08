@@ -12,6 +12,7 @@ import {
     AuthTextField,
     FieldError,
 } from "@/components/auth/ThemedFormControls";
+import { signupFormThemeClasses } from "@/lib/theme/components/signup-form.theme";
 
 export function SignupForm() {
     const router = useRouter();
@@ -61,7 +62,7 @@ export function SignupForm() {
     }
 
     return (
-        <form className="space-y-5" onSubmit={onSubmit}>
+        <form className={signupFormThemeClasses.form} onSubmit={onSubmit}>
             <AuthTextField
                 id="signup-name"
                 label="Name"
