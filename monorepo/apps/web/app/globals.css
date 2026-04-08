@@ -41,6 +41,13 @@
    Global background — soft aurora gradient sits behind every
    page so glass surfaces have something to refract.
    ============================================================ */
+html {
+  /* App is light-themed only; prevents Chromium “auto dark mode” from
+     forcing a black canvas while leaving slate-900 headings unreadable. */
+  color-scheme: light;
+  background-color: #eef2f7;
+}
+
 html, body {
   min-height: 100%;
 }
