@@ -131,14 +131,14 @@ Exports:
 
 1. ThemeProvider reads themeConfig from lib/theme/tokens.ts.
 2. ThemeProvider injects runtime CSS vars in --theme-\* namespace.
-3. app/globals.css maps Tailwind --color-* tokens to --theme-* vars.
+3. app/globals.css maps Tailwind --color-_ tokens to --theme-_ vars.
 4. Tailwind classes (bg-brand-700, text-brand-700, etc.) keep working.
 5. Custom @utility classes (glass, glass-strong, glass-input) keep working.
 
 In short:
 
 - lib/theme/tokens.ts = token values
-- lib/theme/components/*.theme.ts = component style bundles
+- lib/theme/components/\*.theme.ts = component style bundles
 - lib/ThemeProvider.tsx = runtime variable injection
 - app/globals.css = Tailwind token registration + utility definitions
 
