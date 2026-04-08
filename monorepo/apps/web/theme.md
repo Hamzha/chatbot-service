@@ -62,6 +62,12 @@ Current token API:
 
 Each reusable component now has a dedicated theme config file.
 
+Scope rule:
+
+- For every reusable component inside components/, keep a matching file in lib/theme/components/.
+- Naming convention: <component-name>.theme.ts
+- Class map naming: <componentName>ThemeClasses
+
 1. components/auth/ThemedFormControls.tsx
 
 - theme file: lib/theme/components/themed-form-controls.theme.ts
@@ -125,9 +131,16 @@ Exports:
 
 1. ThemeProvider reads themeConfig from lib/theme/tokens.ts.
 2. ThemeProvider injects runtime CSS vars in --theme-\* namespace.
-3. app/globals.css maps Tailwind --color-_ tokens to --theme-_ vars.
+3. app/globals.css maps Tailwind --color-* tokens to --theme-* vars.
 4. Tailwind classes (bg-brand-700, text-brand-700, etc.) keep working.
 5. Custom @utility classes (glass, glass-strong, glass-input) keep working.
+
+In short:
+
+- lib/theme/tokens.ts = token values
+- lib/theme/components/*.theme.ts = component style bundles
+- lib/ThemeProvider.tsx = runtime variable injection
+- app/globals.css = Tailwind token registration + utility definitions
 
 ## Development Rules
 
@@ -185,6 +198,18 @@ Dashboard:
 - app/(protected)/dashboard/upload-document/page.tsx
 - components/dashboard/Sidebar.tsx
 - components/theme/ThemedPrimitives.tsx
+
+Reusable component theme files currently present:
+
+- lib/theme/components/themed-form-controls.theme.ts
+- lib/theme/components/themed-primitives.theme.ts
+- lib/theme/components/auth-shell.theme.ts
+- lib/theme/components/login-form.theme.ts
+- lib/theme/components/signup-form.theme.ts
+- lib/theme/components/logout-button.theme.ts
+- lib/theme/components/sidebar.theme.ts
+- lib/theme/components/dashboard.theme.ts (reserved)
+- lib/theme/components/landing.theme.ts (reserved)
 
 ## Quick Troubleshooting
 
