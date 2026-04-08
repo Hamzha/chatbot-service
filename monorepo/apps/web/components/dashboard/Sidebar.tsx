@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { ThemedStrongCard } from "@/components/theme/ThemedPrimitives";
 
 const navItems = [
   {
@@ -53,7 +54,7 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="glass-strong fixed left-4 top-4 bottom-4 w-60 flex flex-col rounded-2xl overflow-hidden">
+    <ThemedStrongCard className="fixed bottom-4 left-4 top-4 flex w-60 flex-col overflow-hidden">
       <div className="p-6 border-b border-white/30">
         <h1 className="text-lg font-semibold text-slate-900">AI Chatbot</h1>
         <p className="text-sm text-slate-500 mt-1">Dashboard</p>
@@ -70,11 +71,10 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                isActive
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${isActive
                   ? "glass border-brand-300/60 text-brand-800 shadow-sm"
                   : "text-slate-600 hover:bg-white/40 hover:text-slate-900"
-              }`}
+                }`}
             >
               {item.icon}
               {item.label}
@@ -90,6 +90,6 @@ export function Sidebar({
         </div>
         <LogoutButton />
       </div>
-    </aside>
+    </ThemedStrongCard>
   );
 }

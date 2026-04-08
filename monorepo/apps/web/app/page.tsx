@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { ThemedGhostLink, ThemedPrimaryLink, ThemedStrongCard } from "@/components/theme/ThemedPrimitives";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
 
@@ -9,7 +10,7 @@ export default async function Home() {
 
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
-      <section className="glass-strong relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl">
+      <ThemedStrongCard className="relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl">
         <header className="border-b border-white/30 px-6 py-5 sm:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="space-y-1">
@@ -17,19 +18,19 @@ export default async function Home() {
               <h1 className="text-xl font-semibold text-slate-900 sm:text-2xl">Build and manage reliable AI chatbot workflows</h1>
             </div>
             {user ? (
-              <Link
+              <ThemedPrimaryLink
                 href="/dashboard"
-                className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 transition hover:bg-brand-800"
+                className="px-4 py-2"
               >
                 Go to dashboard
-              </Link>
+              </ThemedPrimaryLink>
             ) : (
-              <Link
+              <ThemedPrimaryLink
                 href="/signup"
-                className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 transition hover:bg-brand-800"
+                className="px-4 py-2"
               >
                 Start free
-              </Link>
+              </ThemedPrimaryLink>
             )}
           </div>
         </header>
@@ -47,28 +48,27 @@ export default async function Home() {
               <div className="flex flex-wrap gap-3">
                 {user ? (
                   <>
-                    <Link
+                    <ThemedPrimaryLink
                       href="/dashboard"
-                      className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700"
+                      className="bg-slate-900 shadow-slate-900/20 hover:bg-slate-700"
                     >
                       Open dashboard
-                    </Link>
+                    </ThemedPrimaryLink>
                     <LogoutButton />
                   </>
                 ) : (
                   <>
-                    <Link
+                    <ThemedPrimaryLink
                       href="/signup"
-                      className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700"
+                      className="bg-slate-900 shadow-slate-900/20 hover:bg-slate-700"
                     >
                       Create account
-                    </Link>
-                    <Link
+                    </ThemedPrimaryLink>
+                    <ThemedGhostLink
                       href="/login"
-                      className="glass rounded-xl px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-white/80"
                     >
                       Log in
-                    </Link>
+                    </ThemedGhostLink>
                   </>
                 )}
               </div>
@@ -113,7 +113,7 @@ export default async function Home() {
             </ul>
           </aside>
         </div>
-      </section>
+      </ThemedStrongCard>
     </main>
   );
 }

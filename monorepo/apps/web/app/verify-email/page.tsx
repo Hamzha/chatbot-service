@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ThemedPrimaryButton } from "@/components/theme/ThemedPrimitives";
 
 function VerifyEmailContent() {
     const searchParams = useSearchParams();
@@ -91,12 +92,12 @@ function VerifyEmailContent() {
                             </div>
                             <p className="mt-4 text-lg font-medium text-slate-900">Verification Failed</p>
                             <p className="mt-2 text-sm text-slate-600">{message}</p>
-                            <button
+                            <ThemedPrimaryButton
                                 onClick={() => router.push("/login")}
-                                className="mt-4 inline-block rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800"
+                                className="mt-4 px-4 py-2"
                             >
                                 Back to Login
-                            </button>
+                            </ThemedPrimaryButton>
                         </div>
                     )}
                 </div>

@@ -4,9 +4,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useMemo, useState } from "react";
 import { AuthCard } from "@repo/auth/components/AuthCard";
-import { FormButton as Button } from "@repo/ui/form-button";
 import { FormError } from "@repo/ui/form-error";
-import { PasswordInput } from "@repo/ui/password-input";
+import {
+    AuthInfoMessage,
+    AuthPasswordField,
+    AuthSubmitButton,
+} from "@/components/auth/ThemedFormControls";
+import { ThemedStrongCard } from "@/components/theme/ThemedPrimitives";
 
 function ResetPasswordContent() {
     const router = useRouter();
@@ -64,51 +68,47 @@ function ResetPasswordContent() {
 
     return (
         <main className="flex min-h-screen items-center justify-center px-4 py-10">
-            <div className="glass-strong w-full max-w-md rounded-3xl p-8">
-            <AuthCard title="Reset password" subtitle="Choose a new password for your account.">
-                <form className="space-y-4" onSubmit={onSubmit}>
-                    <PasswordInput
-                        id="reset-password"
-                        label="New password"
-                        name="password"
-                        autoComplete="new-password"
-                        placeholder="At least 8 characters"
-                        value={password}
-                        onChange={(event) => setPassword(event.target.value)}
-                        required
-                    />
-                    <PasswordInput
-                        id="reset-password-confirm"
-                        label="Confirm new password"
-                        name="confirm-password"
-                        autoComplete="new-password"
-                        placeholder="Re-enter your new password"
-                        value={confirmPassword}
-                        onChange={(event) => setConfirmPassword(event.target.value)}
-                        required
-                    />
+            <ThemedStrongCard className="w-full max-w-md rounded-3xl p-8">
+                <AuthCard title="Reset password" subtitle="Choose a new password for your account.">
+                    <form className="space-y-4" onSubmit={onSubmit}>
+                        <AuthPasswordField
+                            id="reset-password"
+                            label="New password"
+                            name="password"
+                            autoComplete="new-password"
+                            placeholder="At least 8 characters"
+                            value={password}
+                            onChange={(event) => setPassword(event.target.value)}
+                            required
+                        />
+                        <AuthPasswordField
+                            id="reset-password-confirm"
+                            label="Confirm new password"
+                            name="confirm-password"
+                            autoComplete="new-password"
+                            placeholder="Re-enter your new password"
+                            value={confirmPassword}
+                            onChange={(event) => setConfirmPassword(event.target.value)}
+                            required
+                        />
 
-                    <FormError message={error} />
+                        <FormError message={error} />
 
-                    {success ? (
-                        <p className="glass rounded-xl border-emerald-300/60 px-3 py-2 text-sm text-emerald-800">
-                            {success}
-                        </p>
-                    ) : null}
+                        <AuthInfoMessage message={success} />
 
-                    <Button type="submit" isLoading={isSubmitting}>
-                        Reset password
-                    </Button>
-                </form>
+                        <AuthSubmitButton type="submit" isLoading={isSubmitting}>
+                            Reset password
+                        </AuthSubmitButton>
+                    </form>
 
-                <p className="mt-4 text-sm text-slate-600">
-                    Back to{" "}
-                    <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900">
-                        login
-                    </Link>
-                </p>
-            </AuthCard>
-            </div>
+                    <p className="mt-4 text-sm text-slate-600">
+                        Back to{" "}
+                        <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900">
+                            login
+                        </Link>
+                    </p>
+                </AuthCard>
+            </ThemedStrongCard>
         </main>
     );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { ThemedPrimaryLink, ThemedStrongCard } from "@/components/theme/ThemedPrimitives";
 
 type PipelineStep = {
   step: number;
@@ -58,7 +59,7 @@ export default async function DashboardPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Welcome header */}
-      <header className="glass-strong relative overflow-hidden rounded-2xl p-8">
+      <ThemedStrongCard className="relative overflow-hidden p-8">
         <div className="relative z-10 flex flex-wrap items-start justify-between gap-6">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Dashboard · Overview</p>
@@ -68,17 +69,17 @@ export default async function DashboardPage() {
               answers. Pick up where you left off, or jump straight into the chatbot.
             </p>
           </div>
-          <Link
+          <ThemedPrimaryLink
             href="/dashboard/chatbot"
-            className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 transition hover:bg-brand-800"
+            className="shrink-0"
           >
             Open chatbot
             <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>
-          </Link>
+          </ThemedPrimaryLink>
         </div>
-      </header>
+      </ThemedStrongCard>
 
       {/* Pipeline */}
       <section>
@@ -129,7 +130,7 @@ export default async function DashboardPage() {
 
       {/* Bottom row: getting started + tips */}
       <section className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-        <div className="glass-strong rounded-2xl p-6">
+        <ThemedStrongCard className="p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Getting started</p>
           <h2 className="mt-1 text-lg font-semibold text-slate-900">Build your knowledge base in three moves</h2>
           <ol className="mt-5 space-y-4">
@@ -149,7 +150,7 @@ export default async function DashboardPage() {
               body="Questions are answered using only your indexed content. Sources for each reply appear alongside the conversation."
             />
           </ol>
-        </div>
+        </ThemedStrongCard>
 
         <aside className="glass-dark flex flex-col rounded-2xl p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-200">Tips</p>

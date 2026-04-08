@@ -1,6 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import {
+  ThemedGhostButton,
+  ThemedInput,
+  ThemedPrimaryButton,
+  ThemedSelect,
+  ThemedStrongCard,
+} from "@/components/theme/ThemedPrimitives";
 
 type ScrapedData = {
   url: string;
@@ -125,7 +132,7 @@ export default function ScraperPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Page header */}
-      <header className="glass-strong flex flex-wrap items-start justify-between gap-4 rounded-2xl p-6">
+      <ThemedStrongCard className="flex flex-wrap items-start justify-between gap-4 p-6">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Ingestion · Step 1</p>
           <h1 className="text-2xl font-semibold text-slate-900">Web Scraper</h1>
@@ -139,27 +146,25 @@ export default function ScraperPage() {
           <button
             type="button"
             onClick={() => setAction("scrape")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              action === "scrape"
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${action === "scrape"
                 ? "bg-white/85 text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700 hover:bg-white/40"
-            }`}
+              }`}
           >
             Single Page
           </button>
           <button
             type="button"
             onClick={() => setAction("crawl")}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              action === "crawl"
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${action === "crawl"
                 ? "bg-white/85 text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700 hover:bg-white/40"
-            }`}
+              }`}
           >
             Crawl Site
           </button>
         </div>
-      </header>
+      </ThemedStrongCard>
 
       {/* Two-column workspace */}
       <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
@@ -179,14 +184,13 @@ export default function ScraperPage() {
               <label htmlFor="url" className="block text-sm font-medium text-slate-700 mb-1.5">
                 Target URL
               </label>
-              <input
+              <ThemedInput
                 id="url"
                 type="url"
                 required
                 placeholder="https://example.com"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
-                className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
               />
               <p className="mt-1.5 text-xs text-slate-500">
                 Include the protocol (http:// or https://).
@@ -197,16 +201,15 @@ export default function ScraperPage() {
               <label htmlFor="mode" className="block text-sm font-medium text-slate-700 mb-1.5">
                 Render mode
               </label>
-              <select
+              <ThemedSelect
                 id="mode"
                 value={mode}
                 onChange={(e) => setMode(e.target.value as "auto" | "static" | "dynamic")}
-                className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
               >
                 <option value="auto">Auto (detect)</option>
                 <option value="static">Static (httpx)</option>
                 <option value="dynamic">Dynamic (Playwright)</option>
-              </select>
+              </ThemedSelect>
             </div>
 
             {action === "crawl" && (
@@ -215,42 +218,40 @@ export default function ScraperPage() {
                   <label htmlFor="maxPages" className="block text-sm font-medium text-slate-700 mb-1.5">
                     Max pages
                   </label>
-                  <input
+                  <ThemedInput
                     id="maxPages"
                     type="number"
                     min={1}
                     max={200}
                     value={maxPages}
                     onChange={(e) => setMaxPages(Number(e.target.value))}
-                    className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
                   />
                 </div>
                 <div>
                   <label htmlFor="maxDepth" className="block text-sm font-medium text-slate-700 mb-1.5">
                     Max depth
                   </label>
-                  <input
+                  <ThemedInput
                     id="maxDepth"
                     type="number"
                     min={1}
                     max={10}
                     value={maxDepth}
                     onChange={(e) => setMaxDepth(Number(e.target.value))}
-                    className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-slate-900 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
                   />
                 </div>
               </div>
             )}
 
-            <button
+            <ThemedPrimaryButton
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-brand-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-3"
             >
               {loading
                 ? action === "scrape" ? "Scraping..." : "Crawling..."
                 : action === "scrape" ? "Scrape page" : "Start crawl"}
-            </button>
+            </ThemedPrimaryButton>
 
             {/* Quick tips */}
             <div className="border-t border-white/30 pt-4 text-xs text-slate-500 space-y-1.5">
@@ -312,7 +313,7 @@ export default function ScraperPage() {
 
 function EmptyResults({ action }: { action: ActionType }) {
   return (
-    <div className="glass flex min-h-[420px] flex-col items-center justify-center rounded-2xl p-10 text-center">
+    <div className="glass flex min-h-105 flex-col items-center justify-center rounded-2xl p-10 text-center">
       <div className="glass-muted mb-4 flex h-14 w-14 items-center justify-center rounded-2xl">
         <svg className="h-7 w-7 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
@@ -332,7 +333,7 @@ function EmptyResults({ action }: { action: ActionType }) {
 
 function LoadingResults({ action }: { action: ActionType }) {
   return (
-    <div className="glass flex min-h-[420px] flex-col items-center justify-center rounded-2xl p-10 text-center">
+    <div className="glass flex min-h-105 flex-col items-center justify-center rounded-2xl p-10 text-center">
       <div className="mb-4 inline-block h-10 w-10 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600" />
       <p className="text-sm font-medium text-slate-700">
         {action === "scrape" ? "Fetching page..." : "Crawling site..."}
@@ -353,16 +354,16 @@ function ScrapeResultView({ data, onDownload }: { data: ScrapedData; onDownload:
           </p>
           <p className="mt-0.5 truncate text-xs text-slate-500">{data.url}</p>
         </div>
-        <button
+        <ThemedGhostButton
           type="button"
           onClick={onDownload}
-          className="glass inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium text-slate-700 hover:bg-white/80 transition-colors"
+          className="shrink-0"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           Download .txt
-        </button>
+        </ThemedGhostButton>
       </div>
 
       <PageResult data={data} />
@@ -391,16 +392,16 @@ function CrawlResultView({
             <Stat label="Failed" value={String(result.failed_urls.length)} tone={result.failed_urls.length ? "warn" : "muted"} />
             <Stat label="Status" value="Done" tone="success" />
           </div>
-          <button
+          <ThemedGhostButton
             type="button"
             onClick={onDownloadAll}
-            className="glass inline-flex items-center gap-2 rounded-xl border-emerald-300/60 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-white/80 transition-colors"
+            className="border border-emerald-300/60 text-emerald-700"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             Download all
-          </button>
+          </ThemedGhostButton>
         </div>
       </div>
 
@@ -477,9 +478,9 @@ function Stat({
 }) {
   const toneClass =
     tone === "brand" ? "text-brand-800"
-    : tone === "success" ? "text-emerald-700"
-    : tone === "warn" ? "text-amber-700"
-    : "text-slate-500";
+      : tone === "success" ? "text-emerald-700"
+        : tone === "warn" ? "text-amber-700"
+          : "text-slate-500";
   return (
     <div>
       <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
@@ -570,7 +571,7 @@ function PageResult({ data }: { data: ScrapedData }) {
 
 function ErrorBox({ error }: { error?: string }) {
   return (
-    <div className="glass flex min-h-[200px] flex-col items-center justify-center rounded-2xl border-rose-300/60 p-8 text-center">
+    <div className="glass flex min-h-50 flex-col items-center justify-center rounded-2xl border-rose-300/60 p-8 text-center">
       <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100/60">
         <svg className="h-6 w-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

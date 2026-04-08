@@ -2,12 +2,16 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { FormButton as Button } from "@repo/ui/form-button";
 import { FormError } from "@repo/ui/form-error";
-import { Input } from "@repo/ui/input";
-import { PasswordInput } from "@repo/ui/password-input";
 import { useAuth } from "@repo/auth/hooks/useAuth";
 import { validateEmail, validateLoginPassword } from "@/components/auth/validation";
+import {
+    AuthInfoMessage,
+    AuthPasswordField,
+    AuthSubmitButton,
+    AuthTextField,
+    FieldError,
+} from "@/components/auth/ThemedFormControls";
 
 type LoginFormProps = {
     infoMessage?: string | null;
@@ -58,7 +62,7 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
 
     return (
         <form className="space-y-5" onSubmit={onSubmit}>
-            <Input
+            <AuthTextField
                 id="login-email"
                 label="Email"
                 name="email"
@@ -75,12 +79,11 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
                 onBlur={() => setEmailError(validateEmail(email))}
                 aria-invalid={Boolean(emailError)}
                 autoFocus
-                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-brand-500 ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
-                    }`}
+                error={emailError}
                 required
             />
-            {emailError ? <p className="-mt-3 text-xs text-red-700">{emailError}</p> : null}
-            <PasswordInput
+            <FieldError message={emailError} />
+            <AuthPasswordField
                 id="login-password"
                 label="Password"
                 name="password"
@@ -95,23 +98,18 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
                 }}
                 onBlur={() => setPasswordError(validateLoginPassword(password))}
                 aria-invalid={Boolean(passwordError)}
-                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 ${passwordError ? "border-red-400" : ""}`}
+                error={passwordError}
                 required
             />
-            {passwordError ? <p className="-mt-3 text-xs text-red-700">{passwordError}</p> : null}
-            {infoMessage ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                    {infoMessage}
-                </p>
-            ) : null}
+            <FieldError message={passwordError} />
+            <AuthInfoMessage message={infoMessage} />
             <FormError message={error} />
-            <Button
+            <AuthSubmitButton
                 type="submit"
                 isLoading={isSubmitting}
-                className="h-11 rounded-xl bg-brand-700 text-sm font-semibold tracking-wide text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800"
             >
                 Log in
-            </Button>
+            </AuthSubmitButton>
         </form>
     );
 }

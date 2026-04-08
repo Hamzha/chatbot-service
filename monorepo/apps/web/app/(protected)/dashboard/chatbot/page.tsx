@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 
 import { assertOkJson, formatApiErrorMessage, parseJsonResponse } from "@/lib/chatbot/parseJsonResponse";
+import { ThemedGhostButton, ThemedInput, ThemedPrimaryButton } from "@/components/theme/ThemedPrimitives";
 
 type JobStatus = {
   status: string;
@@ -166,17 +167,17 @@ export default function ChatbotPage() {
             Ask questions about your uploaded documents. Prior messages are sent as context for follow-ups.
           </p>
         </div>
-        <button
+        <ThemedGhostButton
           type="button"
           onClick={() => void onClearHistory()}
           disabled={messages.length === 0 || isClearing}
-          className="glass shrink-0 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-700 hover:bg-white/80 disabled:opacity-50"
+          className="shrink-0 px-3"
         >
           <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
           </svg>
           {isClearing ? "Clearing…" : "Clear conversation"}
-        </button>
+        </ThemedGhostButton>
       </header>
 
       {/* Chat workspace */}
@@ -206,16 +207,16 @@ export default function ChatbotPage() {
           <div className="border-t border-white/30 px-4 py-4 sm:px-6">
             <form onSubmit={onAsk} className="flex items-end gap-3">
               <div className="glass-input flex-1 rounded-2xl px-4 py-2.5 focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-500/20">
-                <input
-                  className="w-full bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none"
+                <ThemedInput
+                  className="bg-transparent px-0 py-0 ring-0 focus:ring-0"
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   placeholder="Ask a question from your ingested PDFs..."
                   disabled={isQuerying}
                 />
               </div>
-              <button
-                className="inline-flex items-center gap-2 rounded-2xl bg-brand-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              <ThemedPrimaryButton
+                className="rounded-2xl py-3"
                 type="submit"
                 disabled={!question.trim() || isQuerying}
               >
@@ -232,7 +233,7 @@ export default function ChatbotPage() {
                     </svg>
                   </>
                 )}
-              </button>
+              </ThemedPrimaryButton>
             </form>
             <p className="mt-2 px-1 text-[11px] text-slate-500">
               Press Enter to send · Replies use your uploaded documents as context
@@ -375,9 +376,8 @@ function Stat({
     <div className="glass-muted rounded-xl p-3">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
       <p
-        className={`mt-0.5 truncate text-sm font-semibold ${
-          tone === "error" ? "text-rose-700" : "text-slate-900"
-        }`}
+        className={`mt-0.5 truncate text-sm font-semibold ${tone === "error" ? "text-rose-700" : "text-slate-900"
+          }`}
         title={value}
       >
         {value}

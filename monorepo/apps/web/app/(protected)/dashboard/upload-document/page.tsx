@@ -7,6 +7,11 @@ import {
   formatApiErrorMessage,
   parseJsonResponse,
 } from "@/lib/chatbot/parseJsonResponse";
+import {
+  ThemedDangerButton,
+  ThemedPrimaryButton,
+  ThemedStrongCard,
+} from "@/components/theme/ThemedPrimitives";
 
 type JobStatus = {
   status: string;
@@ -173,14 +178,14 @@ export default function UploadDocumentPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Page header */}
-      <header className="glass-strong rounded-2xl p-6">
+      <ThemedStrongCard className="p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Ingestion · Step 2</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">Upload Document</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-600">
           Drop a PDF here to embed it into the chatbot knowledge base. Each upload is chunked and stored in the
           vector index.
         </p>
-      </header>
+      </ThemedStrongCard>
 
       {/* Two-column workspace */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -209,11 +214,10 @@ export default function UploadDocumentPage() {
               }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={onDrop}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-all ${
-                isDragging
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-all ${isDragging
                   ? "border-brand-500 bg-brand-50/50"
                   : "border-slate-300/70 bg-white/30 hover:border-brand-400 hover:bg-white/50"
-              }`}
+                }`}
             >
               <div className="glass-muted mb-3 flex h-14 w-14 items-center justify-center rounded-2xl">
                 <svg className="h-7 w-7 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -264,30 +268,28 @@ export default function UploadDocumentPage() {
               </div>
             )}
 
-            <button
-              className="w-full rounded-xl bg-brand-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            <ThemedPrimaryButton
+              className="w-full py-3"
               type="submit"
               disabled={!file || isUploading}
             >
               {isUploading ? "Ingesting..." : "Ingest document"}
-            </button>
+            </ThemedPrimaryButton>
           </form>
 
           {/* Status panel — only when something happened */}
           {status !== "idle" && (
             <div
-              className={`glass rounded-2xl p-5 ${
-                isSuccess ? "border-emerald-300/60" : isError ? "border-rose-300/60" : ""
-              }`}
+              className={`glass rounded-2xl p-5 ${isSuccess ? "border-emerald-300/60" : isError ? "border-rose-300/60" : ""
+                }`}
             >
               <div className="flex items-center gap-3">
                 <StatusIcon state={isUploading ? "loading" : isSuccess ? "success" : isError ? "error" : "info"} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Job status</p>
                   <p
-                    className={`text-sm font-semibold ${
-                      isSuccess ? "text-emerald-800" : isError ? "text-rose-800" : "text-slate-900"
-                    }`}
+                    className={`text-sm font-semibold ${isSuccess ? "text-emerald-800" : isError ? "text-rose-800" : "text-slate-900"
+                      }`}
                   >
                     {status}
                   </p>
@@ -316,7 +318,7 @@ export default function UploadDocumentPage() {
         </section>
 
         {/* My Documents column */}
-        <section className="glass-strong rounded-2xl p-6">
+        <ThemedStrongCard className="p-6">
           <header className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Knowledge base</p>
@@ -361,20 +363,19 @@ export default function UploadDocumentPage() {
                       <p className="truncate text-sm font-medium text-slate-900">{item.source}</p>
                       <p className="text-xs text-slate-500">{item.chunks.toLocaleString()} chunks</p>
                     </div>
-                    <button
+                    <ThemedDangerButton
                       type="button"
                       onClick={() => onDeleteSource(item.source)}
                       disabled={deletingSource === item.source}
-                      className="shrink-0 rounded-lg border border-rose-300/70 bg-white/40 px-3 py-1.5 text-xs font-medium text-rose-700 backdrop-blur hover:bg-rose-50/60 disabled:opacity-50 transition-colors"
                     >
                       {deletingSource === item.source ? "Deleting..." : "Delete"}
-                    </button>
+                    </ThemedDangerButton>
                   </li>
                 ))}
               </ul>
             )}
           </div>
-        </section>
+        </ThemedStrongCard>
       </div>
     </div>
   );

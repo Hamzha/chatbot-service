@@ -3,9 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import { AuthCard } from "@repo/auth/components/AuthCard";
-import { FormButton as Button } from "@repo/ui/form-button";
 import { FormError } from "@repo/ui/form-error";
-import { Input } from "@repo/ui/input";
+import {
+    AuthInfoMessage,
+    AuthSubmitButton,
+    AuthTextField,
+} from "@/components/auth/ThemedFormControls";
+import { ThemedStrongCard } from "@/components/theme/ThemedPrimitives";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
@@ -43,42 +47,38 @@ export default function ForgotPasswordPage() {
 
     return (
         <main className="flex min-h-screen items-center justify-center px-4 py-10">
-            <div className="glass-strong w-full max-w-md rounded-3xl p-8">
-            <AuthCard title="Forgot password" subtitle="Enter your email to get a secure reset link.">
-                <form className="space-y-4" onSubmit={onSubmit}>
-                    <Input
-                        id="forgot-password-email"
-                        label="Email"
-                        name="email"
-                        type="email"
-                        autoComplete="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(event) => setEmail(event.target.value)}
-                        required
-                    />
+            <ThemedStrongCard className="w-full max-w-md rounded-3xl p-8">
+                <AuthCard title="Forgot password" subtitle="Enter your email to get a secure reset link.">
+                    <form className="space-y-4" onSubmit={onSubmit}>
+                        <AuthTextField
+                            id="forgot-password-email"
+                            label="Email"
+                            name="email"
+                            type="email"
+                            autoComplete="email"
+                            placeholder="you@example.com"
+                            value={email}
+                            onChange={(event) => setEmail(event.target.value)}
+                            required
+                        />
 
-                    <FormError message={error} />
+                        <FormError message={error} />
 
-                    {message ? (
-                        <p className="glass rounded-xl border-emerald-300/60 px-3 py-2 text-sm text-emerald-800">
-                            {message}
-                        </p>
-                    ) : null}
+                        <AuthInfoMessage message={message} />
 
-                    <Button type="submit" isLoading={isSubmitting}>
-                        Send reset link
-                    </Button>
-                </form>
+                        <AuthSubmitButton type="submit" isLoading={isSubmitting}>
+                            Send reset link
+                        </AuthSubmitButton>
+                    </form>
 
-                <p className="mt-4 text-sm text-slate-600">
-                    Remember your password?{" "}
-                    <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900">
-                        Back to login
-                    </Link>
-                </p>
-            </AuthCard>
-            </div>
+                    <p className="mt-4 text-sm text-slate-600">
+                        Remember your password?{" "}
+                        <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900">
+                            Back to login
+                        </Link>
+                    </p>
+                </AuthCard>
+            </ThemedStrongCard>
         </main>
     );
 }
