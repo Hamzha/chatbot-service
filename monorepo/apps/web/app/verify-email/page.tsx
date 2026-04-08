@@ -46,24 +46,24 @@ function VerifyEmailContent() {
     }, [searchParams, router]);
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div className="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
             <div className="w-full max-w-md space-y-8">
                 <div className="text-center">
-                    <h2 className="text-3xl font-bold tracking-tight text-gray-900">Verifying Email</h2>
+                    <h2 className="text-3xl font-bold tracking-tight text-slate-900">Verifying Email</h2>
                 </div>
 
-                <div className="rounded-lg bg-white p-8 shadow">
+                <div className="glass-strong rounded-3xl p-8">
                     {status === "loading" && (
                         <div className="text-center">
-                            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-sky-600"></div>
-                            <p className="mt-4 text-gray-600">Verifying your email...</p>
+                            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600"></div>
+                            <p className="mt-4 text-slate-600">Verifying your email...</p>
                         </div>
                     )}
 
                     {status === "success" && (
                         <div className="text-center">
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-                                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="glass mx-auto flex h-12 w-12 items-center justify-center rounded-full border-emerald-300/60">
+                                <svg className="h-6 w-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
@@ -72,15 +72,15 @@ function VerifyEmailContent() {
                                     />
                                 </svg>
                             </div>
-                            <p className="mt-4 text-lg font-medium text-gray-900">{message}</p>
-                            <p className="mt-2 text-sm text-gray-600">Redirecting to login...</p>
+                            <p className="mt-4 text-lg font-medium text-slate-900">{message}</p>
+                            <p className="mt-2 text-sm text-slate-600">Redirecting to login...</p>
                         </div>
                     )}
 
                     {status === "error" && (
                         <div className="text-center">
-                            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                                <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="glass mx-auto flex h-12 w-12 items-center justify-center rounded-full border-rose-300/60">
+                                <svg className="h-6 w-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path
                                         strokeLinecap="round"
                                         strokeLinejoin="round"
@@ -89,11 +89,11 @@ function VerifyEmailContent() {
                                     />
                                 </svg>
                             </div>
-                            <p className="mt-4 text-lg font-medium text-gray-900">Verification Failed</p>
-                            <p className="mt-2 text-sm text-gray-600">{message}</p>
+                            <p className="mt-4 text-lg font-medium text-slate-900">Verification Failed</p>
+                            <p className="mt-2 text-sm text-slate-600">{message}</p>
                             <button
                                 onClick={() => router.push("/login")}
-                                className="mt-4 inline-block rounded-md bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+                                className="mt-4 inline-block rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800"
                             >
                                 Back to Login
                             </button>
@@ -107,11 +107,11 @@ function VerifyEmailContent() {
 
 function VerifyEmailLoadingPage() {
     return (
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex min-h-screen items-center justify-center">
             <div className="w-full max-w-md">
                 <div className="text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-sky-600"></div>
-                    <p className="mt-4 text-gray-600">Loading...</p>
+                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600"></div>
+                    <p className="mt-4 text-slate-600">Loading...</p>
                 </div>
             </div>
         </div>

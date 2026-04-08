@@ -53,10 +53,10 @@ export function Sidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-64 bg-white border-r border-zinc-200 flex flex-col">
-      <div className="p-6 border-b border-zinc-200">
-        <h1 className="text-lg font-semibold text-zinc-900">AI Chatbot</h1>
-        <p className="text-sm text-zinc-500 mt-1">Dashboard</p>
+    <aside className="glass-strong fixed left-4 top-4 bottom-4 w-60 flex flex-col rounded-2xl overflow-hidden">
+      <div className="p-6 border-b border-white/30">
+        <h1 className="text-lg font-semibold text-slate-900">AI Chatbot</h1>
+        <p className="text-sm text-slate-500 mt-1">Dashboard</p>
       </div>
 
       <nav className="flex-1 p-4 space-y-1">
@@ -70,10 +70,10 @@ export function Sidebar({
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
                 isActive
-                  ? "bg-sky-50 text-sky-700"
-                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
+                  ? "glass border-brand-300/60 text-brand-800 shadow-sm"
+                  : "text-slate-600 hover:bg-white/40 hover:text-slate-900"
               }`}
             >
               {item.icon}
@@ -83,10 +83,10 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="p-4 border-t border-zinc-200">
+      <div className="p-4 border-t border-white/30">
         <div className="mb-3">
-          <p className="text-sm font-medium text-zinc-900 truncate">{userName}</p>
-          <p className="text-xs text-zinc-500 truncate">{userEmail}</p>
+          <p className="text-sm font-medium text-slate-900 truncate">{userName}</p>
+          <p className="text-xs text-slate-500 truncate">{userEmail}</p>
         </div>
         <LogoutButton />
       </div>

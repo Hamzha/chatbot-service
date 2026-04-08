@@ -25,7 +25,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             footer={
                 <p>
                     Do not have an account?{" "}
-                    <Link href="/signup" className="font-semibold text-cyan-700 transition hover:text-cyan-900">
+                    <Link href="/signup" className="font-semibold text-brand-700 transition hover:text-brand-900">
                         Create one now
                     </Link>
                     .
@@ -34,7 +34,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         >
             <LoginForm infoMessage={infoMessage} />
             <p className="-mt-1 text-right text-sm text-slate-600">
-                <Link href="/forgot-password" className="font-semibold text-cyan-700 transition hover:text-cyan-900">
+                <Link href="/forgot-password" className="font-semibold text-brand-700 transition hover:text-brand-900">
                     Forgot your password?
                 </Link>
             </p>

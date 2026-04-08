@@ -42,7 +42,8 @@ export default function ForgotPasswordPage() {
     }
 
     return (
-        <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-4 py-10">
+        <main className="flex min-h-screen items-center justify-center px-4 py-10">
+            <div className="glass-strong w-full max-w-md rounded-3xl p-8">
             <AuthCard title="Forgot password" subtitle="Enter your email to get a secure reset link.">
                 <form className="space-y-4" onSubmit={onSubmit}>
                     <Input
@@ -60,7 +61,7 @@ export default function ForgotPasswordPage() {
                     <FormError message={error} />
 
                     {message ? (
-                        <p className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                        <p className="glass rounded-xl border-emerald-300/60 px-3 py-2 text-sm text-emerald-800">
                             {message}
                         </p>
                     ) : null}
@@ -70,13 +71,14 @@ export default function ForgotPasswordPage() {
                     </Button>
                 </form>
 
-                <p className="mt-4 text-sm text-zinc-600">
+                <p className="mt-4 text-sm text-slate-600">
                     Remember your password?{" "}
-                    <Link href="/login" className="font-medium text-sky-700 hover:text-sky-800">
+                    <Link href="/login" className="font-medium text-brand-700 hover:text-brand-900">
                         Back to login
                     </Link>
                 </p>
             </AuthCard>
+            </div>
         </main>
     );
 }

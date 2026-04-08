@@ -75,7 +75,7 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
                 onBlur={() => setEmailError(validateEmail(email))}
                 aria-invalid={Boolean(emailError)}
                 autoFocus
-                className={`h-11 rounded-xl bg-slate-50/60 text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:ring-cyan-500 ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : "border-slate-300"
+                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-brand-500 ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
                     }`}
                 required
             />
@@ -95,7 +95,7 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
                 }}
                 onBlur={() => setPasswordError(validateLoginPassword(password))}
                 aria-invalid={Boolean(passwordError)}
-                className={`h-11 rounded-xl text-slate-900 placeholder:text-slate-400 ${passwordError ? "border-red-400" : ""}`}
+                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 ${passwordError ? "border-red-400" : ""}`}
                 required
             />
             {passwordError ? <p className="-mt-3 text-xs text-red-700">{passwordError}</p> : null}
@@ -108,7 +108,7 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
             <Button
                 type="submit"
                 isLoading={isSubmitting}
-                className="h-11 rounded-xl bg-cyan-700 text-sm font-semibold tracking-wide hover:bg-cyan-800"
+                className="h-11 rounded-xl bg-brand-700 text-sm font-semibold tracking-wide text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800"
             >
                 Log in
             </Button>
