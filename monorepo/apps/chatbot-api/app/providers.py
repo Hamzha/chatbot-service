@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Protocol
 
 import requests
+from requests.exceptions import Timeout as RequestsTimeout
 from openai import OpenAI
 
 from app.config import settings
@@ -76,6 +77,11 @@ class OpenAIGenerator:
         return answer
 
 
+def _ollama_timeout(connect_s: float, read_s: float) -> tuple[float, float]:
+    """Separate connect vs read so slow generation does not fail on connect phase."""
+    return (connect_s, read_s)
+
+
 class OllamaEmbedder:
     def __init__(self, base_url: str, model: str, timeout_s: int) -> None:
         self.base_url = base_url.rstrip("/")
@@ -85,11 +91,17 @@ class OllamaEmbedder:
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
         for text in texts:
-            resp = requests.post(
-                f"{self.base_url}/api/embeddings",
-                json={"model": self.model, "prompt": text},
-                timeout=self.timeout_s,
-            )
+            try:
+                resp = requests.post(
+                    f"{self.base_url}/api/embeddings",
+                    json={"model": self.model, "prompt": text},
+                    timeout=_ollama_timeout(15.0, float(self.timeout_s)),
+                )
+            except RequestsTimeout as e:
+                raise RuntimeError(
+                    f"Ollama embeddings timed out after {self.timeout_s}s (model={self.model!r}). "
+                    "Increase OLLAMA_TIMEOUT_SECONDS or use a smaller embed model."
+                ) from e
             _raise_for_ollama_status(resp, what=f"embeddings (model={self.model!r})")
             data = resp.json()
             vectors.append(data["embedding"])
@@ -103,16 +115,23 @@ class OllamaGenerator:
         self.timeout_s = timeout_s
 
     def generate_answer(self, prompt: str) -> str:
-        resp = requests.post(
-            f"{self.base_url}/api/generate",
-            json={
-                "model": self.model,
-                "prompt": "Use only provided context when answering.\n\n" + prompt,
-                "stream": False,
-                "options": {"temperature": 0.2},
-            },
-            timeout=self.timeout_s,
-        )
+        try:
+            resp = requests.post(
+                f"{self.base_url}/api/generate",
+                json={
+                    "model": self.model,
+                    "prompt": "Use only provided context when answering.\n\n" + prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2},
+                },
+                timeout=_ollama_timeout(15.0, float(self.timeout_s)),
+            )
+        except RequestsTimeout as e:
+            raise RuntimeError(
+                f"Ollama chat generation timed out after {self.timeout_s}s read (model={self.model!r}). "
+                "Local models can be slow; set OLLAMA_GENERATE_TIMEOUT_SECONDS higher (e.g. 900), "
+                "use a smaller/faster model, or shorten the prompt/context."
+            ) from e
         _raise_for_ollama_status(resp, what=f"generate (model={self.model!r})")
         data = resp.json()
         answer = (data.get("response") or "").strip()
@@ -133,7 +152,7 @@ def build_provider_clients() -> tuple[Embedder, Generator]:
             OllamaGenerator(
                 base_url=settings.ollama_base_url,
                 model=settings.ollama_chat_model,
-                timeout_s=settings.ollama_timeout_seconds,
+                timeout_s=settings.ollama_generate_timeout_seconds,
             ),
         )
 

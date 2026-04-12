@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://127.0.0.1:11434"
     ollama_chat_model: str = "qwen2.5:14b"
     ollama_embed_model: str = "nomic-embed-text"
+    #: Per-request timeout for `/api/embeddings` (each chunk).
     ollama_timeout_seconds: int = 180
+    #: Read timeout for `/api/generate` (full RAG answer); local models often need several minutes.
+    ollama_generate_timeout_seconds: int = 600
 
     chroma_persist_dir: str = "./chroma_data"
     chroma_collection: str = "chatbot_chunks"
