@@ -80,8 +80,8 @@ export function Sidebar({
               key={item.href}
               href={item.href}
               className={`flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${isActive
-                  ? "bg-white/70 border-brand-300/60 text-brand-800 shadow-sm"
-                  : "text-slate-600 hover:bg-white/40 hover:text-slate-900"
+                ? "bg-white/70 border-brand-300/60 text-brand-800 shadow-sm"
+                : "text-slate-600 hover:bg-white/40 hover:text-slate-900"
                 }`}
             >
               {item.icon}
