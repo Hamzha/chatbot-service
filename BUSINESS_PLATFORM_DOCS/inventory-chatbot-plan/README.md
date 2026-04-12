@@ -8,6 +8,7 @@ This plan is focused on enabling business owners to upload inventory/stock data 
 - `02-business-owner-inventory-chatbot.md`
 - `03-implementation-roadmap.md`
 - `04-pricing-packages.md`
+- `05-website-embed-widget-plan.md`
 
 ## Outcome
 

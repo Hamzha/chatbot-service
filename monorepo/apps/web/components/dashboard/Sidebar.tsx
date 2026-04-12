@@ -41,6 +41,15 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    label: "Get Script",
+    href: "/dashboard/get-script",
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16l-4-4m0 0l4-4m-4 4h16m-4 4l4-4m0 0l-4-4" />
+      </svg>
+    ),
+  },
 ];
 
 export function Sidebar({
