@@ -10,6 +10,10 @@ class QueryInput(BaseModel):
         max_length=20000,
         description="Prior user/assistant turns; included in the prompt, not used for retrieval.",
     )
+    source_ids: list[str] | None = Field(
+        default=None,
+        description="If set, retrieval is limited to these Chroma source ids (non-empty).",
+    )
 
 
 class QueryRequest(BaseModel):
@@ -18,6 +22,10 @@ class QueryRequest(BaseModel):
     conversation_context: str | None = Field(
         default=None,
         max_length=20000,
+    )
+    source_ids: list[str] | None = Field(
+        default=None,
+        description="If set, retrieval is limited to these Chroma source ids (non-empty).",
     )
 
 

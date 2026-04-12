@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import {
+    finalizeChatbotDocument,
     listChatbotDocuments,
     upsertChatbotDocument,
 } from "@/lib/db/chatbotDocumentRepo";
-
-const CHATBOT_API_BASE =
-    process.env.CHATBOT_API_URL ??
-    process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL ??
-    "http://127.0.0.1:8001";
 
 async function getAuthedUserId(): Promise<string | null> {
     const token = await getSessionCookie();
@@ -21,7 +18,7 @@ async function getAuthedUserId(): Promise<string | null> {
 /** When Mongo has no rows yet, copy sources from the chatbot (Chroma) into Mongo once. */
 async function backfillFromChatbotIfEmpty(userId: string): Promise<void> {
     try {
-        const res = await fetch(`${CHATBOT_API_BASE}/v1/sources`, {
+        const res = await fetch(`${getChatbotApiBaseUrl()}/v1/sources`, {
             method: "GET",
             headers: { "x-user-id": userId },
         });
@@ -50,10 +47,16 @@ export async function GET() {
     }
 
     return NextResponse.json({
-        sources: records.map((r) => ({ source: r.source, chunks: r.chunks })),
+        sources: records.map((r) => ({
+            id: r.id,
+            source: r.source,
+            ragSourceKey: r.ragSourceKey,
+            chunks: r.chunks,
+        })),
     });
 }
 
+/** Finalize chunk counts after ingestion: `{ documentId, chunks }`. */
 export async function POST(request: Request) {
     const userId = await getAuthedUserId();
     if (!userId) {
@@ -67,20 +70,24 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
     }
 
-    const src = body as { source?: unknown; chunks?: unknown };
-    if (typeof src.source !== "string" || !src.source.trim()) {
-        return NextResponse.json({ error: "Missing or invalid source" }, { status: 400 });
+    const b = body as { documentId?: unknown; chunks?: unknown };
+    if (typeof b.documentId !== "string" || !b.documentId.trim()) {
+        return NextResponse.json({ error: "Missing or invalid documentId" }, { status: 400 });
     }
-    const chunks = typeof src.chunks === "number" && Number.isFinite(src.chunks) ? Math.floor(src.chunks) : NaN;
+    const chunks = typeof b.chunks === "number" && Number.isFinite(b.chunks) ? Math.floor(b.chunks) : NaN;
     if (chunks < 0 || Number.isNaN(chunks)) {
         return NextResponse.json({ error: "Missing or invalid chunks" }, { status: 400 });
     }
 
     try {
-        const record = await upsertChatbotDocument(userId, src.source.trim(), chunks);
+        const record = await finalizeChatbotDocument(userId, b.documentId.trim(), chunks);
+        if (!record) {
+            return NextResponse.json({ error: "Document not found" }, { status: 404 });
+        }
         return NextResponse.json({
             id: record.id,
             source: record.source,
+            ragSourceKey: record.ragSourceKey,
             chunks: record.chunks,
         });
     } catch (e) {

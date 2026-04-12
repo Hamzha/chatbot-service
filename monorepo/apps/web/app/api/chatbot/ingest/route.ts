@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
-
-const CHATBOT_API_BASE =
-  process.env.CHATBOT_API_URL ??
-  process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL ??
-  "http://127.0.0.1:8001";
+import { createPendingChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
 
 async function getAuthedUserId(): Promise<string | null> {
   const token = await getSessionCookie();
@@ -27,17 +24,46 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Missing file" }, { status: 400 });
   }
 
+  let pending;
+  try {
+    pending = await createPendingChatbotDocument(userId, file.name || "document.pdf");
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 400 });
+  }
+
   const fd = new FormData();
   fd.append("file", file);
 
   try {
-    const res = await fetch(`${CHATBOT_API_BASE}/v1/ingest`, {
+    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/ingest`, {
       method: "POST",
-      headers: { "x-user-id": userId },
+      headers: {
+        "x-user-id": userId,
+        "x-rag-source-id": pending.ragSourceKey,
+      },
       body: fd,
     });
     const text = await res.text();
-    return proxyChatbotResponse(res, text);
+    if (!res.ok) {
+      return proxyChatbotResponse(res, text);
+    }
+    let parsed: { event_ids?: string[] };
+    try {
+      parsed = JSON.parse(text) as { event_ids?: string[] };
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid JSON from chatbot service", detail: text.slice(0, 200) },
+        { status: 502 },
+      );
+    }
+    return NextResponse.json({
+      event_ids: parsed.event_ids,
+      document: {
+        id: pending.id,
+        source: pending.source,
+        ragSourceKey: pending.ragSourceKey,
+      },
+    });
   } catch (e) {
     return NextResponse.json(
       { error: "Cannot reach chatbot service", detail: String(e) },
@@ -45,4 +71,3 @@ export async function POST(request: Request) {
     );
   }
 }
-

@@ -77,11 +77,18 @@ async def query_fn(ctx: inngest.Context):
     if raw_cc is not None:
         s = str(raw_cc).strip()
         cc = s if s else None
+    raw_sids = ctx.event.data.get("source_ids")
+    source_ids: list[str] | None = None
+    if isinstance(raw_sids, list) and raw_sids:
+        source_ids = [str(x).strip() for x in raw_sids if str(x).strip()]
+        if not source_ids:
+            source_ids = None
     payload = QueryInput(
         user_id=ctx.event.data["user_id"],
         question=ctx.event.data["question"],
         top_k=int(ctx.event.data.get("top_k", 4)),
         conversation_context=cc,
+        source_ids=source_ids,
     )
     result = await ctx.step.run(
         "query-rag",
@@ -99,11 +106,16 @@ def health() -> dict[str, str]:
 
 
 @app.post("/v1/ingest")
-async def ingest(file: UploadFile = File(...), x_user_id: str | None = Header(default=None)):
+async def ingest(
+    file: UploadFile = File(...),
+    x_user_id: str | None = Header(default=None),
+    x_rag_source_id: str | None = Header(default=None, alias="x-rag-source-id"),
+):
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Missing x-user-id header")
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    rag_key = (x_rag_source_id or "").strip() or file.filename
     uploads_dir = Path("uploads")
     uploads_dir.mkdir(parents=True, exist_ok=True)
     target = uploads_dir / f"{int(datetime.datetime.utcnow().timestamp())}-{file.filename}"
@@ -112,10 +124,17 @@ async def ingest(file: UploadFile = File(...), x_user_id: str | None = Header(de
     event_ids = await inngest_client.send(
         inngest.Event(
             name="chatbot/ingest_pdf",
-            data={"user_id": x_user_id, "pdf_path": str(target), "source_id": file.filename},
+            data={"user_id": x_user_id, "pdf_path": str(target), "source_id": rag_key},
         )
     )
-    return {"event_ids": event_ids, "source_id": file.filename}
+    return {"event_ids": event_ids, "source_id": rag_key}
+
+
+def _normalize_source_ids(raw: list[str] | None) -> list[str] | None:
+    if not raw:
+        return None
+    out = [s.strip() for s in raw if s.strip()]
+    return out or None
 
 
 @app.post("/v1/query")
@@ -123,6 +142,7 @@ async def query(body: QueryRequest, x_user_id: str | None = Header(default=None)
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Missing x-user-id header")
     cc = body.conversation_context.strip() if body.conversation_context else None
+    source_ids = _normalize_source_ids(body.source_ids)
     event_ids = await inngest_client.send(
         inngest.Event(
             name="chatbot/query",
@@ -131,6 +151,7 @@ async def query(body: QueryRequest, x_user_id: str | None = Header(default=None)
                 "question": body.question,
                 "top_k": body.top_k,
                 "conversation_context": cc,
+                "source_ids": source_ids,
             },
         )
     )
@@ -142,11 +163,13 @@ async def query_sync(body: QueryRequest, x_user_id: str | None = Header(default=
     if not x_user_id:
         raise HTTPException(status_code=401, detail="Missing x-user-id header")
     cc = body.conversation_context.strip() if body.conversation_context else None
+    source_ids = _normalize_source_ids(body.source_ids)
     payload = QueryInput(
         user_id=x_user_id,
         question=body.question,
         top_k=body.top_k,
         conversation_context=cc,
+        source_ids=source_ids,
     )
     return query_use_case.execute(payload).model_dump()
 

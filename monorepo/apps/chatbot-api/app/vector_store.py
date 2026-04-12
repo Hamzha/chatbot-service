@@ -21,6 +21,14 @@ def _where_user_and_source_eq(user_id: str, source_id: str) -> dict:
     }
 
 
+def _where_user_and_sources_in(user_id: str, source_ids: list[str]) -> dict:
+    """Restrict retrieval to a set of source ids for this user."""
+    if len(source_ids) == 1:
+        return _where_user_and_source_eq(user_id, source_ids[0])
+    or_clauses = [{"source": {"$eq": sid}} for sid in source_ids]
+    return {"$and": [{"user_id": {"$eq": user_id}}, {"$or": or_clauses}]}
+
+
 class ChromaVectorStore:
     def __init__(self) -> None:
         self.client = chromadb.PersistentClient(path=settings.chroma_persist_dir)
@@ -41,11 +49,22 @@ class ChromaVectorStore:
             metadatas=[{"source": s, "user_id": u} for s, u in zip(sources, user_ids)],
         )
 
-    def search(self, query_vector: list[float], top_k: int, user_id: str) -> list[RetrievedContext]:
+    def search(
+        self,
+        query_vector: list[float],
+        top_k: int,
+        user_id: str,
+        source_ids: list[str] | None = None,
+    ) -> list[RetrievedContext]:
+        where_filter: dict
+        if source_ids:
+            where_filter = _where_user_and_sources_in(user_id, source_ids)
+        else:
+            where_filter = _where_user_eq(user_id)
         res = self.collection.query(
             query_embeddings=[query_vector],
             n_results=top_k,
-            where=_where_user_eq(user_id),
+            where=where_filter,
         )
         docs = (res.get("documents") or [[]])[0]
         metas = (res.get("metadatas") or [[]])[0]

@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
-
-const CHATBOT_API_BASE =
-  process.env.CHATBOT_API_URL ??
-  process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL ??
-  "http://127.0.0.1:8001";
 
 async function getAuthedUserId(): Promise<string | null> {
   const token = await getSessionCookie();
@@ -26,7 +22,7 @@ export async function DELETE(
 
   const { sourceId } = await params;
   try {
-    const res = await fetch(`${CHATBOT_API_BASE}/v1/sources/${encodeURIComponent(sourceId)}`, {
+    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/sources/${encodeURIComponent(sourceId)}`, {
       method: "DELETE",
       headers: { "x-user-id": userId },
     });

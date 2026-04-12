@@ -41,7 +41,12 @@ class QueryRagUseCase:
 
     def execute(self, data: QueryInput) -> QueryOutput:
         question_vector = self.embedder.embed_texts([data.question])[0]
-        contexts = self.store.search(question_vector, top_k=data.top_k, user_id=data.user_id)
+        contexts = self.store.search(
+            question_vector,
+            top_k=data.top_k,
+            user_id=data.user_id,
+            source_ids=data.source_ids,
+        )
         context_block = "\n\n".join(f"- {c.text}" for c in contexts)
         prior = ""
         if data.conversation_context and data.conversation_context.strip():

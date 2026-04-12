@@ -17,7 +17,9 @@ type JobStatus = {
 };
 
 type SourceItem = {
+  id: string;
   source: string;
+  ragSourceKey?: string;
   chunks: number;
 };
 
@@ -91,17 +93,24 @@ export default function UploadDocumentPage() {
         method: "POST",
         body: fd,
       });
-      const body = await parseJsonResponse<{ event_ids?: string[] }>(res);
+      const body = await parseJsonResponse<{
+        event_ids?: string[];
+        document?: { id: string; source: string };
+      }>(res);
       assertOkJson(res, body);
       const eventId = body.event_ids?.[0];
+      const documentId = body.document?.id;
       if (!eventId) {
         throw new Error("No ingestion event ID returned from chatbot API.");
+      }
+      if (!documentId) {
+        throw new Error("No document record returned from ingest.");
       }
       const job = await pollJob(eventId);
       setStatus(job.status);
       setResult(
         job.output?.ingested != null
-          ? `Ingested ${job.output.ingested} chunks from ${job.output.source ?? file.name}`
+          ? `Ingested ${job.output.ingested} chunks from ${body.document?.source ?? file.name}`
           : `Status: ${job.status}`
       );
       if (
@@ -112,7 +121,7 @@ export default function UploadDocumentPage() {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            source: job.output.source ?? file.name,
+            documentId,
             chunks: job.output.ingested,
           }),
         });
@@ -131,11 +140,11 @@ export default function UploadDocumentPage() {
     }
   }
 
-  async function onDeleteSource(source: string) {
-    setDeletingSource(source);
+  async function onDeleteSource(documentId: string) {
+    setDeletingSource(documentId);
     setListError(null);
     try {
-      const res = await fetch(`/api/chatbot/documents/${encodeURIComponent(source)}`, {
+      const res = await fetch(`/api/chatbot/documents/${encodeURIComponent(documentId)}`, {
         method: "DELETE",
       });
       const data = await parseJsonResponse<unknown>(res);
@@ -177,8 +186,8 @@ export default function UploadDocumentPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Ingestion · Step 2</p>
         <h1 className="mt-1 text-2xl font-semibold text-slate-900">Upload Document</h1>
         <p className="mt-1 max-w-2xl text-sm text-slate-600">
-          Drop a PDF here to embed it into the chatbot knowledge base. Each upload is chunked and stored in the
-          vector index.
+          Build your document library here. PDFs are chunked and indexed; when you create a chat, you choose which
+          documents that chat may use.
         </p>
       </header>
 
@@ -349,7 +358,7 @@ export default function UploadDocumentPage() {
               <ul className="space-y-2">
                 {sources.map((item) => (
                   <li
-                    key={item.source}
+                    key={item.id}
                     className="glass flex items-center gap-3 rounded-xl px-4 py-3"
                   >
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-700/10">
@@ -363,11 +372,11 @@ export default function UploadDocumentPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => onDeleteSource(item.source)}
-                      disabled={deletingSource === item.source}
+                      onClick={() => onDeleteSource(item.id)}
+                      disabled={deletingSource === item.id}
                       className="shrink-0 rounded-lg border border-rose-300/70 bg-white/40 px-3 py-1.5 text-xs font-medium text-rose-700 backdrop-blur hover:bg-rose-50/60 disabled:opacity-50 transition-colors"
                     >
-                      {deletingSource === item.source ? "Deleting..." : "Delete"}
+                      {deletingSource === item.id ? "Deleting..." : "Delete"}
                     </button>
                   </li>
                 ))}

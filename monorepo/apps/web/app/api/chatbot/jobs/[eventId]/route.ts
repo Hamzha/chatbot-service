@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
-
-const CHATBOT_API_BASE =
-  process.env.CHATBOT_API_URL ??
-  process.env.NEXT_PUBLIC_CHATBOT_API_BASE_URL ??
-  "http://127.0.0.1:8001";
 
 async function ensureAuthed(): Promise<boolean> {
   const token = await getSessionCookie();
@@ -26,12 +22,17 @@ export async function GET(
 
   const { eventId } = await params;
   try {
-    const res = await fetch(`${CHATBOT_API_BASE}/v1/jobs/${eventId}`, { method: "GET" });
+    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/jobs/${eventId}`, { method: "GET" });
     const text = await res.text();
     return proxyChatbotResponse(res, text);
   } catch (e) {
     return NextResponse.json(
-      { error: "Cannot reach chatbot service", detail: String(e) },
+      {
+        error: "Cannot reach chatbot service",
+        detail: String(e),
+        baseUrl: getChatbotApiBaseUrl(),
+        hint: "Start chatbot-api (port 8001, e.g. turbo run dev). Use http://127.0.0.1:8001 in CHATBOT_API_URL if localhost fails on Windows.",
+      },
       { status: 502 },
     );
   }
