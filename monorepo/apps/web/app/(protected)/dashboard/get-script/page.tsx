@@ -1,21 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
-
-const BOT_ID = "demo_bot_001";
+import { useEffect, useMemo, useState } from "react";
 
 export default function GetScriptPage() {
   const [copied, setCopied] = useState(false);
+  const [botId, setBotId] = useState<string | null>(null);
 
-  const scriptSnippet = useMemo(() => {
-    if (typeof window === "undefined") {
-      return `<script src="/chatbot-widget.js" data-bot-id="${BOT_ID}"></script>`;
-    }
-
-    return `<script src="${window.location.origin}/chatbot-widget.js" data-bot-id="${BOT_ID}"></script>`;
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/chatbot/bot-id", { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => {
+        if (!cancelled) setBotId(data.botId);
+      })
+      .catch(() => {
+        if (!cancelled) setBotId(null);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  const scriptSnippet = useMemo(() => {
+    if (!botId) return "";
+    const origin = typeof window === "undefined" ? "" : window.location.origin;
+    return `<script src="${origin}/chatbot-widget.js" data-bot-id="${botId}"></script>`;
+  }, [botId]);
+
   async function handleCopy() {
+    if (!scriptSnippet) return;
     try {
       await navigator.clipboard.writeText(scriptSnippet);
       setCopied(true);
@@ -41,14 +54,15 @@ export default function GetScriptPage() {
           <button
             type="button"
             onClick={handleCopy}
-            className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 transition hover:bg-brand-800"
+            disabled={!botId}
+            className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 transition hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {copied ? "Copied" : "Copy script"}
           </button>
         </div>
 
         <pre className="overflow-x-auto rounded-xl border border-white/40 bg-slate-900 p-4 text-sm text-slate-100">
-          <code>{scriptSnippet}</code>
+          <code>{botId ? scriptSnippet : "Loading your bot id…"}</code>
         </pre>
 
         <ol className="space-y-2 text-sm text-slate-600">
