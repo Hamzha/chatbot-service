@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { listChatSessions } from "@/lib/db/chatSessionRepo";
 
 export async function GET() {
   const token = await getSessionCookie();
@@ -13,5 +14,11 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json({ botId: user.id });
+  const sessions = await listChatSessions(user.id);
+  const botId = sessions[0]?.id ?? null;
+  if (!botId) {
+    return NextResponse.json({ error: "No chatbots found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ botId });
 }

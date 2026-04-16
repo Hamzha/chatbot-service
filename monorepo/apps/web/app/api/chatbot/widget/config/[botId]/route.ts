@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { findUserById } from "@/lib/db/userRepo";
-import { getWidgetConfig } from "@/lib/db/widgetConfigRepo";
+import { getChatSessionById } from "@/lib/db/chatSessionRepo";
 
 /** Public endpoint — widget fetches its color config using the botId (no auth). */
 export async function GET(
@@ -13,14 +12,12 @@ export async function GET(
     return NextResponse.json({ error: "Missing botId" }, { status: 400 });
   }
 
-  const user = await findUserById(botId.trim());
-  if (!user) {
+  const chatbot = await getChatSessionById(botId.trim());
+  if (!chatbot) {
     return NextResponse.json({ error: "Invalid botId" }, { status: 404 });
   }
 
-  const config = await getWidgetConfig(botId.trim());
-
   return NextResponse.json({
-    primaryColor: config?.primaryColor ?? "#0f766e",
+    primaryColor: chatbot.primaryColor,
   });
 }

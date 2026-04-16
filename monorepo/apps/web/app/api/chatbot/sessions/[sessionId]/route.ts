@@ -50,13 +50,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const b = body as { name?: unknown; documentIds?: unknown };
-  const patch: { name?: string; documentIds?: string[] } = {};
+  const b = body as { name?: unknown; documentIds?: unknown; primaryColor?: unknown };
+  const patch: { name?: string; documentIds?: string[]; primaryColor?: string } = {};
   if (b.name !== undefined) {
     if (typeof b.name !== "string") {
       return NextResponse.json({ error: "name must be a string" }, { status: 400 });
     }
     patch.name = b.name;
+  }
+  if (b.primaryColor !== undefined) {
+    if (typeof b.primaryColor !== "string" || !/^#[0-9a-fA-F]{6}$/.test(b.primaryColor)) {
+      return NextResponse.json(
+        { error: "primaryColor must be a valid hex color (e.g. #0f766e)" },
+        { status: 400 },
+      );
+    }
+    patch.primaryColor = b.primaryColor;
   }
   if (b.documentIds !== undefined) {
     if (!Array.isArray(b.documentIds) || b.documentIds.length === 0) {

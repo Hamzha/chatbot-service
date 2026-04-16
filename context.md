@@ -259,6 +259,14 @@ SCRAPER_RATE_LIMIT_PER_MINUTE=60
    - Sends async Inngest event
    - Returns `{ success, message, source_id }`
 
+## Current Chatbot Data Model
+
+- The per-user chatbot record now lives in `monorepo/apps/web/lib/db/chatSessionRepo.ts`.
+- Each chatbot/session record stores `userId`, `name`, `primaryColor`, and `selectedRagKeys`.
+- `primaryColor` is stored on the chatbot/session record itself, not in `widgetConfigRepo.ts`.
+- A single user can have multiple chatbot/session records, and each one can have its own color.
+- The dashboard pages for customize/get-script should load the chatbot/session list and edit the selected record.
+
 5. **New HTTP endpoint: `POST /api/v1/query`** (lines 271-302)
    - Accepts: `{ question, top_k? }`
    - Searches vector DB synchronously

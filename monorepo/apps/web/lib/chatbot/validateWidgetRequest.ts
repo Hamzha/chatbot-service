@@ -1,4 +1,4 @@
-import { findUserById } from "@/lib/db/userRepo";
+import { getChatSessionById } from "@/lib/db/chatSessionRepo";
 
 const MAX_MESSAGE_LENGTH = 500;
 
@@ -42,9 +42,8 @@ export async function validateWidgetRequest(
     };
   }
 
-  // botId is currently the user ID — verify it exists
-  const user = await findUserById(botId.trim());
-  if (!user) {
+  const chatbot = await getChatSessionById(botId.trim());
+  if (!chatbot) {
     return { valid: false, error: "Invalid botId", status: 404 };
   }
 

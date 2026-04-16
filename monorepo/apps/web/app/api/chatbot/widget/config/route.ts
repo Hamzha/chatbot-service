@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
-import { getWidgetConfig, upsertWidgetConfig } from "@/lib/db/widgetConfigRepo";
+import { getChatSession, updateChatSession } from "@/lib/db/chatSessionRepo";
 
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 
@@ -12,15 +12,24 @@ async function getAuthedUserId(): Promise<string | null> {
   return user?.id ?? null;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const userId = await getAuthedUserId();
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const config = await getWidgetConfig(userId);
+  const sessionId = new URL(request.url).searchParams.get("sessionId")?.trim();
+  if (!sessionId) {
+    return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
+  }
+
+  const session = await getChatSession(userId, sessionId);
+  if (!session) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   return NextResponse.json({
-    primaryColor: config?.primaryColor ?? "#0f766e",
+    primaryColor: session.primaryColor,
   });
 }
 
@@ -37,7 +46,11 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const b = body as { primaryColor?: unknown };
+  const b = body as { sessionId?: unknown; primaryColor?: unknown };
+
+  if (typeof b.sessionId !== "string" || !b.sessionId.trim()) {
+    return NextResponse.json({ error: "sessionId is required" }, { status: 400 });
+  }
 
   if (typeof b.primaryColor !== "string" || !HEX_COLOR_REGEX.test(b.primaryColor)) {
     return NextResponse.json(
@@ -46,8 +59,12 @@ export async function PUT(request: Request) {
     );
   }
 
-  const config = await upsertWidgetConfig(userId, b.primaryColor);
+  const session = await updateChatSession(userId, b.sessionId.trim(), { primaryColor: b.primaryColor });
+  if (!session) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   return NextResponse.json({
-    primaryColor: config.primaryColor,
+    primaryColor: session.primaryColor,
   });
 }
