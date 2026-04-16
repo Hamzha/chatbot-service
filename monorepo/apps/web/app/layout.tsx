@@ -33,7 +33,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col text-slate-900">
-        Scri
+
         <Script
           src="http://localhost:3000/chatbot-widget.js"
           data-bot-id="69d14a2b20ae95915e7d73da"
