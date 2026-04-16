@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-
+import Script from "next/script";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "AI Chatbot Platform",
-  description: "AI-powered chatbot platform with authentication, web scraping, and RAG-based PDF Q&A",
+  description:
+    "AI-powered chatbot platform with authentication, web scraping, and RAG-based PDF Q&A",
 };
 
 export const viewport: Viewport = {
@@ -31,7 +32,14 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col text-slate-900">{children}</body>
+      <body className="min-h-full flex flex-col text-slate-900">
+        Scri
+        <Script
+          src="http://localhost:3000/chatbot-widget.js"
+          data-bot-id="69d14a2b20ae95915e7d73da"
+        ></Script>
+        {children}
+      </body>
     </html>
   );
 }

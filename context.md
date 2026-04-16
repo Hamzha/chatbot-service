@@ -298,6 +298,129 @@ SCRAPER_RATE_LIMIT_PER_MINUTE=60
   - For each page, sends to chatbot service separately
   - Each page gets unique source_id: `{baseUrl}#page-{index}`
 
+## Embeddable Chatbot Widget
+
+The platform provides an embeddable chatbot widget that users can add to any external website via a script tag.
+
+### Widget Script — `monorepo/apps/web/public/chatbot-widget.js`
+
+- Self-contained IIFE — injects a floating chat bubble + panel into the host page
+- Reads `data-bot-id` from the script tag (botId = userId)
+- Derives `apiBase` from the script's own `src` URL so API calls work from external sites
+- On load: fetches the user's saved color config **before** rendering (no flicker)
+- Sends user messages to the chat API and displays bot replies
+- Fully dynamic colors: launcher, header, send button, user bubbles, focus rings, shadows — all derived from one primary color
+- Mobile responsive, typing indicator, error handling, input disable during send
+
+### Widget API Routes (public, no auth — but validate botId exists)
+
+**`POST /api/chatbot/widget/chat`** — `app/api/chatbot/widget/chat/route.ts`
+
+- Accepts: `{ botId, message }`
+- Validates request via `lib/chatbot/validateWidgetRequest.ts` (separate function for easy editing)
+  - Checks botId is a valid user ID (calls `findUserById`)
+  - Checks message is non-empty, max 500 chars
+- Returns: `{ reply }` — currently static, will be wired to chatbot service
+
+**`GET /api/chatbot/widget/config/[botId]`** — `app/api/chatbot/widget/config/[botId]/route.ts`
+
+- Public endpoint called by the widget script on load
+- Validates botId exists in database
+- Returns: `{ primaryColor }` (or default `#0f766e`)
+
+### Widget Config API (auth-protected — dashboard use)
+
+**`GET /api/chatbot/widget/config`** — Returns the logged-in user's saved widget color
+
+**`PUT /api/chatbot/widget/config`** — `app/api/chatbot/widget/config/route.ts`
+
+- Accepts: `{ primaryColor }` (must be valid hex like `#0f766e`)
+- Upserts to MongoDB `WidgetConfig` collection (one config per user)
+
+### Widget Config MongoDB Schema — `lib/db/widgetConfigRepo.ts`
+
+- **Model:** `WidgetConfig`
+- **Fields:** `userId` (ObjectId, unique, indexed), `primaryColor` (string, default `#0f766e`), timestamps
+- **Functions:** `getWidgetConfig(userId)`, `upsertWidgetConfig(userId, primaryColor)`
+
+### Customize Page — `app/(protected)/dashboard/customize/page.tsx`
+
+- Dashboard page at `/dashboard/customize`
+- Native color picker (large) + hex input for any color
+- Auto-generated shade row from the selected color
+- Live preview of the widget (header, messages, send button, launcher) — updates in real time
+- Save button styled with the selected color, reset button for unsaved changes
+- Fetches saved color on load, saves via `PUT /api/chatbot/widget/config`
+
+### Get Script Page — `app/(protected)/dashboard/get-script/page.tsx`
+
+- Dashboard page at `/dashboard/get-script`
+- Fetches user's botId from `GET /api/chatbot/bot-id` (botId = userId)
+- Generates embed snippet: `<script src="{origin}/chatbot-widget.js" data-bot-id="{botId}"></script>`
+- Copy to clipboard button
+
+### Validation — `lib/chatbot/validateWidgetRequest.ts`
+
+- Separate validation function for widget chat requests
+- Checks: botId exists (via `findUserById`), message non-empty, message max 500 chars
+- Returns typed `ValidationResult` (success with cleaned data, or failure with error + status)
+- Designed to be easily extended with origin checking, rate limiting, etc.
+
+## Next Step: Iframe-Based Widget Architecture (Planned)
+
+The current widget script builds the full UI on the client's site and makes API calls directly from their domain. The senior-recommended approach is to switch to an **iframe-based architecture** — this is how production embed widgets (Intercom, Crisp, Tidio, etc.) work.
+
+### Current approach (direct script)
+
+```
+Client's website
+  → loads chatbot-widget.js from our server
+  → script builds the entire chatbot UI (DOM, CSS) on THEIR page
+  → script makes fetch() calls directly to our API from THEIR domain
+  → needs CORS headers, API endpoints exposed in devtools
+```
+
+### Planned approach (iframe)
+
+```
+Client's website
+  → loads chatbot-widget.js from our server
+  → script ONLY injects a launcher button + an <iframe>
+  → iframe src = "ourdomain.com/widget/[botId]"
+  → iframe loads a full chatbot page hosted on OUR domain
+  → all API calls happen inside the iframe (same-origin, no CORS)
+  → client's site never sees our API endpoints
+```
+
+### Why iframe is better
+
+- **No CORS** — iframe is our domain talking to our domain, no cross-origin issues
+- **Security** — API endpoints not exposed to the client's site or devtools
+- **Easy updates** — update the widget page on our server, every client gets it instantly without changing their script tag
+- **Isolation** — client's page JS cannot tamper with or read the widget content
+- **Styling safety** — client's CSS cannot accidentally break the widget UI
+- **Same script tag** — the embed snippet `<script src="..." data-bot-id="...">` stays the same, only the script internals change
+
+### What needs to be built
+
+1. **Widget page route** — e.g. `app/widget/[botId]/page.tsx` — a standalone Next.js page that renders the full chatbot UI (header, messages, input). This page uses the botId from the URL to fetch config (color) and handle chat API calls. No dashboard layout/sidebar, just the chatbot.
+
+2. **Updated `chatbot-widget.js`** — becomes a thin loader:
+   - Injects a launcher button (floating circle)
+   - On click: creates/shows an `<iframe src="ourdomain.com/widget/[botId]">` styled as the chat panel
+   - Communicates with iframe via `postMessage` if needed (e.g. to close the panel)
+   - The launcher button color could be passed as a query param or fetched via config API
+
+3. **postMessage communication** (optional) — for the iframe to tell the parent script to close the panel, show notifications, etc.
+
+### Research topics
+
+- `window.postMessage` for iframe ↔ parent communication
+- How Intercom/Crisp embed scripts work (inspect their script tags)
+- Next.js route groups for the widget page (no layout inheritance)
+- Content Security Policy (CSP) `frame-ancestors` to control which domains can embed the iframe
+- `sandbox` attribute on iframe for extra security
+
 ## Known Issues
 
 ## How to Run
