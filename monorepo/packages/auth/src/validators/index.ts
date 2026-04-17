@@ -35,3 +35,7 @@ export const resetPasswordSchema = z.object({
     token: z.string({ error: "Reset token is required." }).trim().min(1, "Reset token is required."),
     password: passwordSchema,
 });
+
+export const profileUpdateSchema = z.object({
+    name: nameSchema,
+});

@@ -1,0 +1,12 @@
+# Bytecode — regenerated on every run; never commit
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual env
+.venv/
+
+# Local runtime data (vectors, uploads)
+chroma_data/
+uploads/

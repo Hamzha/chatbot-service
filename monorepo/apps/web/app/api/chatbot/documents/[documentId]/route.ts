@@ -1,26 +1,17 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserFromToken } from "@/lib/auth/authService";
-import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { deleteChatbotDocumentById, getChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
-
-async function getAuthedUserId(): Promise<string | null> {
-    const token = await getSessionCookie();
-    if (!token) return null;
-    const user = await getCurrentUserFromToken(token);
-    return user?.id ?? null;
-}
 
 /** Delete vectors in the chatbot service, then remove the Mongo document record. */
 export async function DELETE(
     _request: Request,
     { params }: { params: Promise<{ documentId: string }> },
 ) {
-    const userId = await getAuthedUserId();
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserIdWithPermission("chatbot_documents:delete");
+    if (auth instanceof NextResponse) return auth;
+    const { userId } = auth;
 
     const { documentId } = await params;
     if (!documentId) {

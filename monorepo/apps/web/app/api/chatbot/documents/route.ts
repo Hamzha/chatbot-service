@@ -1,19 +1,11 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserFromToken } from "@/lib/auth/authService";
-import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import {
     finalizeChatbotDocument,
     listChatbotDocuments,
     upsertChatbotDocument,
 } from "@/lib/db/chatbotDocumentRepo";
-
-async function getAuthedUserId(): Promise<string | null> {
-    const token = await getSessionCookie();
-    if (!token) return null;
-    const user = await getCurrentUserFromToken(token);
-    return user?.id ?? null;
-}
 
 /** When Mongo has no rows yet, copy sources from the chatbot (Chroma) into Mongo once. */
 async function backfillFromChatbotIfEmpty(userId: string): Promise<void> {
@@ -35,10 +27,9 @@ async function backfillFromChatbotIfEmpty(userId: string): Promise<void> {
 }
 
 export async function GET() {
-    const userId = await getAuthedUserId();
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserIdWithPermission("chatbot_documents:read");
+    if (auth instanceof NextResponse) return auth;
+    const { userId } = auth;
 
     let records = await listChatbotDocuments(userId);
     if (records.length === 0) {
@@ -58,10 +49,9 @@ export async function GET() {
 
 /** Finalize chunk counts after ingestion: `{ documentId, chunks }`. */
 export async function POST(request: Request) {
-    const userId = await getAuthedUserId();
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserIdWithPermission("chatbot_documents:update");
+    if (auth instanceof NextResponse) return auth;
+    const { userId } = auth;
 
     let body: unknown;
     try {

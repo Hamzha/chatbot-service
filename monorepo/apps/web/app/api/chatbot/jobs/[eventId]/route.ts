@@ -1,24 +1,14 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserFromToken } from "@/lib/auth/authService";
-import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { requireApiPermission } from "@/lib/auth/requireApiPermission";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
-
-async function ensureAuthed(): Promise<boolean> {
-  const token = await getSessionCookie();
-  if (!token) return false;
-  const user = await getCurrentUserFromToken(token);
-  return Boolean(user?.id);
-}
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
-  const authed = await ensureAuthed();
-  if (!authed) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireApiPermission("chatbot_jobs:read");
+  if (gate instanceof NextResponse) return gate;
 
   const { eventId } = await params;
   try {

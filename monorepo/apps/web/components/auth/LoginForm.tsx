@@ -11,14 +11,16 @@ import { validateEmail, validateLoginPassword } from "@/components/auth/validati
 
 type LoginFormProps = {
     infoMessage?: string | null;
+    /** Two quick-login buttons; only when `ALLOW_DEMO_LOGIN=true` (see demoUsers defaults). */
+    demoLoginEnabled?: boolean;
 };
 
-export function LoginForm({ infoMessage = null }: LoginFormProps) {
+export function LoginForm({ infoMessage = null, demoLoginEnabled = false }: LoginFormProps) {
     const router = useRouter();
     const { login } = useAuth();
 
-    const [email, setEmail] = useState("test@example.com");
-    const [password, setPassword] = useState("test@examplpe");
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
     const [emailError, setEmailError] = useState<string | undefined>(undefined);
     const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
     const [error, setError] = useState<string | null>(null);
@@ -54,6 +56,33 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
 
         router.push("/dashboard");
         router.refresh();
+    }
+
+    const [demoLoading, setDemoLoading] = useState<"admin" | "user" | null>(null);
+
+    async function quickLogin(preset: "admin" | "user") {
+        setError(null);
+        if (!demoLoginEnabled) return;
+        setDemoLoading(preset);
+        try {
+            const res = await fetch("/api/auth/demo-login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ preset }),
+            });
+            const data = (await res.json()) as { user?: { email: string }; error?: string };
+            if (!res.ok || !data.user) {
+                setError(data.error ?? "Demo login failed.");
+                setDemoLoading(null);
+                return;
+            }
+            router.push("/dashboard");
+            router.refresh();
+        } catch {
+            setError("Demo login failed.");
+            setDemoLoading(null);
+        }
     }
 
     return (
@@ -103,6 +132,26 @@ export function LoginForm({ infoMessage = null }: LoginFormProps) {
                 <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                     {infoMessage}
                 </p>
+            ) : null}
+            {demoLoginEnabled ? (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                        type="button"
+                        disabled={Boolean(demoLoading)}
+                        onClick={() => void quickLogin("user")}
+                        className="flex-1 rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm font-medium text-slate-800 hover:bg-white disabled:opacity-60"
+                    >
+                        {demoLoading === "user" ? "Signing in…" : "Login as test user"}
+                    </button>
+                    <button
+                        type="button"
+                        disabled={Boolean(demoLoading)}
+                        onClick={() => void quickLogin("admin")}
+                        className="flex-1 rounded-xl border border-brand-200 bg-white/80 px-3 py-2 text-sm font-medium text-brand-900 hover:bg-brand-50/80 disabled:opacity-60"
+                    >
+                        {demoLoading === "admin" ? "Signing in…" : "Login as admin"}
+                    </button>
+                </div>
             ) : null}
             <FormError message={error} />
             <Button

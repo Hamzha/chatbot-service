@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 
 const SCRAPER_API_URL = process.env.SCRAPER_API_URL || "http://localhost:8000";
 const CHATBOT_API_URL = process.env.CHATBOT_API_URL || "http://localhost:8000";
@@ -29,6 +30,9 @@ async function sendToChatbotService(
 
 export async function POST(req: NextRequest) {
   try {
+    const gate = await requireUserIdWithPermission("scraper:create");
+    if (gate instanceof NextResponse) return gate;
+
     const body = await req.json();
 
     const res = await fetch(`${SCRAPER_API_URL}/api/v1/crawl`, {
