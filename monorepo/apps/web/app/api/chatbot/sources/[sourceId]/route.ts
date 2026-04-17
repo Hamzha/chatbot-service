@@ -1,24 +1,15 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserFromToken } from "@/lib/auth/authService";
-import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
-
-async function getAuthedUserId(): Promise<string | null> {
-  const token = await getSessionCookie();
-  if (!token) return null;
-  const user = await getCurrentUserFromToken(token);
-  return user?.id ?? null;
-}
 
 export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ sourceId: string }> }
 ) {
-  const userId = await getAuthedUserId();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUserIdWithPermission("chatbot_sources:delete");
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
 
   const { sourceId } = await params;
   try {

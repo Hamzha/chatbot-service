@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { AuthShell } from "@/components/auth/AuthShell";
+import { getDemoLoginEnv } from "@/lib/db/demoUsers";
 
 type LoginPageProps = {
     searchParams: Promise<{ message?: string }>;
@@ -9,6 +10,7 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
     const params = await searchParams;
     const infoMessage = params.message === "verify-email" ? "Please verify your email before logging in." : null;
+    const demo = getDemoLoginEnv();
 
     return (
         <AuthShell
@@ -32,7 +34,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
                 </p>
             }
         >
-            <LoginForm infoMessage={infoMessage} />
+            <LoginForm infoMessage={infoMessage} demoLoginEnabled={demo.enabled} />
             <p className="-mt-1 text-right text-sm text-slate-600">
                 <Link href="/forgot-password" className="font-semibold text-brand-700 transition hover:text-brand-900">
                     Forgot your password?

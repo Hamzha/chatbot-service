@@ -1,18 +1,10 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserFromToken } from "@/lib/auth/authService";
-import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import {
   appendChatbotExchange,
   clearChatbotMessages,
   listChatbotMessages,
 } from "@/lib/db/chatbotMessageRepo";
-
-async function getAuthedUserId(): Promise<string | null> {
-  const token = await getSessionCookie();
-  if (!token) return null;
-  const user = await getCurrentUserFromToken(token);
-  return user?.id ?? null;
-}
 
 function sessionIdFromUrl(request: Request): string | null {
   const url = new URL(request.url);
@@ -21,10 +13,9 @@ function sessionIdFromUrl(request: Request): string | null {
 }
 
 export async function GET(request: Request) {
-  const userId = await getAuthedUserId();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUserIdWithPermission("chatbot_messages:read");
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const sessionId = sessionIdFromUrl(request);
   if (!sessionId) {
     return NextResponse.json({ error: "Missing sessionId query parameter" }, { status: 400 });
@@ -39,10 +30,9 @@ export async function GET(request: Request) {
 
 /** Persist one user question + assistant answer after a completed chatbot job. */
 export async function POST(request: Request) {
-  const userId = await getAuthedUserId();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUserIdWithPermission("chatbot_messages:create");
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
 
   let body: unknown;
   try {
@@ -73,10 +63,9 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const userId = await getAuthedUserId();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireUserIdWithPermission("chatbot_messages:delete");
+  if (auth instanceof NextResponse) return auth;
+  const { userId } = auth;
   const sessionId = sessionIdFromUrl(request);
   if (!sessionId) {
     return NextResponse.json({ error: "Missing sessionId query parameter" }, { status: 400 });

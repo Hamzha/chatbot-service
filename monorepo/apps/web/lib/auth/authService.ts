@@ -8,12 +8,15 @@ import {
 import { hashPassword, verifyPassword } from "@repo/auth/lib/password";
 import { signSessionToken, verifySessionToken } from "@repo/auth/lib/jwt";
 import {
+    countUsers,
     createUser,
     findUserByEmail,
     findUserById,
     toSafeUser,
     updateUserPassword,
 } from "@/lib/db/userRepo";
+import { ensureRbacSeeded } from "@/lib/db/rbacSeed";
+import { assignRoleSlugsToUser } from "@/lib/db/roleRepo";
 import { generateEmailToken, verifyEmailToken } from "@repo/auth/lib/tokens";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email/resend";
 import type { LoginInput, SessionPayload, SignupInput } from "@repo/auth/types";
@@ -39,6 +42,12 @@ export async function signup(input: SignupInput): Promise<{ user: SafeUser }> {
         passwordHash,
     });
 
+    await ensureRbacSeeded();
+    const totalUsers = await countUsers();
+    if (totalUsers === 1) {
+        await assignRoleSlugsToUser(createdUser.id, ["admin"]);
+    }
+
     // Send verification email
     try {
         const verificationToken = await generateEmailToken(createdUser.email, createdUser.id, "email_verification");
@@ -53,6 +62,7 @@ export async function signup(input: SignupInput): Promise<{ user: SafeUser }> {
 
 export async function login(input: LoginInput): Promise<{ token: string; user: SafeUser }> {
     const parsed = loginSchema.parse(input);
+    await ensureRbacSeeded();
     const existingUser = await findUserByEmail(parsed.email);
 
     if (!existingUser) {
