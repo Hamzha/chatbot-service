@@ -28,6 +28,12 @@ export const DASHBOARD_SIDEBAR_NAV = [
         permission: "chatbot_sessions:read",
     },
     {
+        id: "nav.dashboard.get-script",
+        label: "Get Script",
+        href: "/dashboard/get-script",
+        permission: "chatbot_sessions:read",
+    },
+    {
         id: "nav.dashboard.admin.roles",
         label: "Roles & permissions",
         href: "/dashboard/admin/roles",

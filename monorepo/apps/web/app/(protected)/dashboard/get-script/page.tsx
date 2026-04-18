@@ -69,6 +69,7 @@ export default function GetScriptPage() {
                 <h1 className="mt-1 text-2xl font-semibold text-slate-900">Get Script</h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600">
                     Pick a chatbot, then copy the script and paste it before the closing body tag on your website.
+                    The script only mounts the launcher and iframe; all chat logic stays on our domain.
                 </p>
             </header>
 
@@ -93,8 +94,8 @@ export default function GetScriptPage() {
                                 type="button"
                                 onClick={() => setSelectedChatbotId(chatbot.id)}
                                 className={`rounded-2xl border px-4 py-3 text-left transition ${chatbot.id === selectedChatbotId
-                                        ? "border-brand-500 bg-brand-50/70 shadow-sm"
-                                        : "border-slate-200/70 bg-white/40 hover:bg-white/70"
+                                    ? "border-brand-500 bg-brand-50/70 shadow-sm"
+                                    : "border-slate-200/70 bg-white/40 hover:bg-white/70"
                                     }`}
                             >
                                 <div className="flex items-center justify-between gap-3">

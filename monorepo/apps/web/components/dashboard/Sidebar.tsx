@@ -48,6 +48,16 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
             />
         </svg>
     ),
+    "nav.dashboard.get-script": (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 9l-4 3 4 3m8-6l4 3-4 3M10 17l4-10"
+            />
+        </svg>
+    ),
     "nav.dashboard.admin.roles": (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

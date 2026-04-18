@@ -138,6 +138,32 @@ export async function getChatSessionById(sessionId: string): Promise<ChatSession
     return row ? mapSession(row) : null;
 }
 
+export async function ensureChatSessionForUser(
+    userId: string,
+    input: {
+        name: string;
+        primaryColor?: string;
+        selectedRagKeys?: string[];
+    },
+): Promise<ChatSessionRecord> {
+    await ensureDbConnection();
+    const uid = new Types.ObjectId(userId);
+    const trimmedName = input.name.trim() || "Untitled chat";
+    const existing = await ChatSessionModel.findOne({ userId: uid, name: trimmedName }).lean<ChatSessionDoc | null>();
+    if (existing) {
+        return mapSession(existing);
+    }
+
+    const doc = await ChatSessionModel.create({
+        userId: uid,
+        name: trimmedName,
+        primaryColor: input.primaryColor?.trim() || "#0f766e",
+        selectedRagKeys: input.selectedRagKeys ?? [],
+    });
+
+    return mapSession(doc.toObject() as ChatSessionDoc);
+}
+
 /** Resolve `selectedRagKeys` to library filenames for UI (survives navigation; works if the documents list API fails). */
 export async function resolveSessionSelectedDocuments(
     userId: string,

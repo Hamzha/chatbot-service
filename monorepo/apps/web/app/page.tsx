@@ -2,13 +2,14 @@ import Link from "next/link";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
-
+import Script from "next/script";
 export default async function Home() {
   const token = await getSessionCookie();
   const user = token ? await getCurrentUserFromToken(token) : null;
 
   return (
     <main className="relative min-h-screen overflow-hidden px-4 py-8 sm:px-6 sm:py-10 lg:px-10">
+      <Script src="http://localhost:3000/chatbot-widget.js" data-bot-id="69e3fa41105d78aac66febf3" />
       <section className="glass-strong relative mx-auto w-full max-w-6xl overflow-hidden rounded-3xl">
         <header className="border-b border-white/30 px-6 py-5 sm:px-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
