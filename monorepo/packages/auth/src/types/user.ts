@@ -5,7 +5,7 @@ export type UserRecord = {
     passwordHash: string;
     emailVerified: string | null;
     createdAt: string;
-    /** Mongo role ObjectIds as strings; empty until RBAC migration / signup assigns roles */
+    /** Mongo role ObjectIds as strings; empty until RBAC seed assigns the default `user` role */
     roleIds?: string[];
 };
 

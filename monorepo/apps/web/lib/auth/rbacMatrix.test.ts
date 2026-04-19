@@ -6,11 +6,12 @@ import {
     defaultAdminCodes,
     defaultClientCodes,
     defaultMediatorCodes,
+    defaultUserCodes,
 } from "@/lib/db/roleRepo";
 
 /**
- * Frozen product spec for the **client** system role.
- * Must stay in lockstep with `defaultClientCodes()` in `lib/db/roleRepo.ts`.
+ * Frozen product spec for the **client** and **user** system roles (identical permission sets).
+ * Must stay in lockstep with `defaultClientCodes()` / `defaultUserCodes()` in `lib/db/roleRepo.ts`.
  * When defaults change intentionally, update both places.
  */
 const CLIENT_ROLE_PERMISSION_SPEC = [
@@ -86,6 +87,10 @@ describe("Frozen default roles vs roleRepo", () => {
         expect(sortedCopy(defaultClientCodes())).toEqual(sortedCopy(CLIENT_ROLE_PERMISSION_SPEC));
     });
 
+    it("defaultUserCodes matches CLIENT_ROLE_PERMISSION_SPEC (signup default role)", () => {
+        expect(sortedCopy(defaultUserCodes())).toEqual(sortedCopy(CLIENT_ROLE_PERMISSION_SPEC));
+    });
+
     it("defaultMediatorCodes matches MEDIATOR_ROLE_PERMISSION_SPEC", () => {
         expect(sortedCopy(defaultMediatorCodes())).toEqual(sortedCopy(MEDIATOR_ROLE_PERMISSION_SPEC));
     });
@@ -118,6 +123,13 @@ describe("Role × full permission catalog", () => {
             expect(client.has(code), `mediator has ${code} but client does not`).toBe(true);
         }
         expect(client.size).toBeGreaterThan(mediator.size);
+    });
+
+    it("mediator ⊆ user (same codes as client)", () => {
+        const user = new Set(defaultUserCodes());
+        for (const code of mediator) {
+            expect(user.has(code), `mediator has ${code} but user does not`).toBe(true);
+        }
     });
 
     it("client never grants users:* or roles:*", () => {

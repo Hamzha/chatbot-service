@@ -8,7 +8,6 @@ import {
 import { hashPassword, verifyPassword } from "@repo/auth/lib/password";
 import { signSessionToken, verifySessionToken } from "@repo/auth/lib/jwt";
 import {
-    countUsers,
     createUser,
     findUserByEmail,
     findUserById,
@@ -16,7 +15,6 @@ import {
     updateUserPassword,
 } from "@/lib/db/userRepo";
 import { ensureRbacSeeded } from "@/lib/db/rbacSeed";
-import { assignRoleSlugsToUser } from "@/lib/db/roleRepo";
 import { generateEmailToken, verifyEmailToken } from "@repo/auth/lib/tokens";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email/resend";
 import type { LoginInput, SessionPayload, SignupInput } from "@repo/auth/types";
@@ -43,10 +41,7 @@ export async function signup(input: SignupInput): Promise<{ user: SafeUser }> {
     });
 
     await ensureRbacSeeded();
-    const totalUsers = await countUsers();
-    if (totalUsers === 1) {
-        await assignRoleSlugsToUser(createdUser.id, ["admin"]);
-    }
+    // New accounts get the `user` system role via migrateUsersWithoutRoles (empty roleIds → user).
 
     // Send verification email
     try {

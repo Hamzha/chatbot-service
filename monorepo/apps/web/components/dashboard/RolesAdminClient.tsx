@@ -261,9 +261,9 @@ export function RolesAdminClient() {
             <div>
                 <h1 className="text-2xl font-semibold text-slate-900">Roles & permissions</h1>
                 <p className="text-sm text-slate-600 mt-1">
-                    Permissions are defined in code and synced to the database. Edit which codes each role includes; new users get the{" "}
-                    <span className="font-medium">client</span> role unless they are the first signup (admin) or match{" "}
-                    <code className="text-xs bg-slate-100 px-1 rounded">ADMIN_BOOTSTRAP_EMAIL</code>.
+                    Permissions are defined in code and synced to the database. Edit which codes each role includes; new signups get the{" "}
+                    <span className="font-medium">user</span> role by default. Grant admin with{" "}
+                    <code className="text-xs bg-slate-100 px-1 rounded">ADMIN_BOOTSTRAP_EMAIL</code> or from this screen.
                 </p>
             </div>
 
