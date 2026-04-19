@@ -184,6 +184,11 @@ export function defaultAdminCodes(): string[] {
     return allCatalogCodes();
 }
 
+/** Default permissions for the `user` system role (standard app access; same set as `client`). */
+export function defaultUserCodes(): string[] {
+    return defaultClientCodes();
+}
+
 export function defaultClientCodes(): string[] {
     return [
         "dashboard:read",

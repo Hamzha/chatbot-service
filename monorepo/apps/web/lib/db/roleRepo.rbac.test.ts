@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { allCatalogCodes, isValidPermissionCode } from "@/lib/auth/permissionCatalog";
-import { defaultAdminCodes, defaultClientCodes, defaultMediatorCodes } from "@/lib/db/roleRepo";
+import {
+    defaultAdminCodes,
+    defaultClientCodes,
+    defaultMediatorCodes,
+    defaultUserCodes,
+} from "@/lib/db/roleRepo";
 
 describe("roleRepo default permission sets", () => {
     const catalog = new Set(allCatalogCodes());
@@ -24,6 +29,10 @@ describe("roleRepo default permission sets", () => {
         expect(client).toContain("chatbot_documents:read");
         expect(client).not.toContain("roles:read");
         expect(client).not.toContain("users:read");
+    });
+
+    it("defaultUserCodes matches defaultClientCodes (signup default `user` role)", () => {
+        expect(defaultUserCodes()).toEqual(defaultClientCodes());
     });
 
     it("defaultMediatorCodes is a subset of the catalog and narrower than client", () => {

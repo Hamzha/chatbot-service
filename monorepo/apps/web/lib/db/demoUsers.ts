@@ -36,7 +36,7 @@ export function getDemoLoginEnv(): { enabled: boolean } {
 }
 
 /**
- * Upsert demo admin (full admin role / all permissions) + test user (client role), both email-verified.
+ * Upsert demo admin (full admin role / all permissions) + test user (`user` role), both email-verified.
  * Runs when `ALLOW_DEMO_LOGIN=true` (uses defaults or `DEMO_*` overrides).
  */
 export async function ensureDemoUsers(): Promise<void> {
@@ -58,5 +58,5 @@ export async function ensureDemoUsers(): Promise<void> {
         name: "Demo User",
         passwordHash: userHash,
     });
-    await assignRoleSlugsToUser(normalRecord.id, ["client"]);
+    await assignRoleSlugsToUser(normalRecord.id, ["user"]);
 }

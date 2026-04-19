@@ -6,6 +6,7 @@ import {
     defaultAdminCodes,
     defaultClientCodes,
     defaultMediatorCodes,
+    defaultUserCodes,
     findRoleBySlug,
     upsertSystemRole,
     addRoleSlugsToUser,
@@ -18,12 +19,12 @@ let seedPromise: Promise<void> | null = null;
 async function migrateUsersWithoutRoles(): Promise<void> {
     const UserModel = mongoose.models.User as mongoose.Model<{ roleIds?: Types.ObjectId[] }> | undefined;
     if (!UserModel) return;
-    const client = await findRoleBySlug("client");
-    if (!client) return;
-    const clientOid = new Types.ObjectId(client.id);
+    const userRole = await findRoleBySlug("user");
+    if (!userRole) return;
+    const userOid = new Types.ObjectId(userRole.id);
     await UserModel.updateMany(
         { $or: [{ roleIds: { $exists: false } }, { roleIds: { $size: 0 } }] },
-        { $set: { roleIds: [clientOid] } },
+        { $set: { roleIds: [userOid] } },
     );
 }
 
@@ -40,6 +41,7 @@ async function runSeed(): Promise<void> {
     await syncPermissionCatalog();
     await upsertSystemRole("admin", "Administrator", "Full access", defaultAdminCodes());
     await upsertSystemRole("client", "Client", "Standard product access", defaultClientCodes());
+    await upsertSystemRole("user", "User", "Default role for new signups", defaultUserCodes());
     await upsertSystemRole("mediator", "Mediator", "Limited operational access", defaultMediatorCodes());
     const RoleModel = mongoose.models.Role as Model<{ enabled?: boolean }> | undefined;
     if (RoleModel) {
