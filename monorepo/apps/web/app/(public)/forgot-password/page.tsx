@@ -6,6 +6,7 @@ import { AuthCard } from "@repo/auth/components/AuthCard";
 import { FormButton as Button } from "@repo/ui/form-button";
 import { FormError } from "@repo/ui/form-error";
 import { Input } from "@repo/ui/input";
+import { toast } from "@/lib/ui/toast";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
@@ -29,13 +30,19 @@ export default function ForgotPasswordPage() {
             const data = (await response.json()) as { message?: string; error?: string };
 
             if (!response.ok) {
-                setError(data.error || "Unable to process request.");
+                const msg = data.error || "Unable to process request.";
+                setError(msg);
+                toast.error(msg);
                 return;
             }
 
-            setMessage(data.message || "If an account exists, a reset link has been sent.");
+            const successMsg =
+                data.message || "If an account exists, a reset link has been sent.";
+            setMessage(successMsg);
+            toast.success("Reset email sent");
         } catch {
             setError("Unable to process request.");
+            toast.error("Unable to process request.");
         } finally {
             setIsSubmitting(false);
         }

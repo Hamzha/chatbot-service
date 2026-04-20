@@ -7,6 +7,8 @@ import {
   formatApiErrorMessage,
   parseJsonResponse,
 } from "@/lib/chatbot/parseJsonResponse";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type JobStatus = {
   status: string;
@@ -87,6 +89,7 @@ export default function UploadDocumentPage() {
 
     setStatus("uploading");
     setResult("");
+    const loadingId = toast.loading(`Uploading ${file.name}…`);
 
     try {
       const fd = new FormData();
@@ -133,35 +136,56 @@ export default function UploadDocumentPage() {
             ? formatApiErrorMessage(errBody, recordRes.status)
             : `Could not save document record (${recordRes.status})`;
           setResult((prev) => `${prev}\n${msg}`);
+          toast.error(msg, { id: loadingId });
+        } else {
+          toast.success(
+            `Document added — ${job.output.ingested.toLocaleString()} chunks indexed`,
+            { id: loadingId },
+          );
         }
+      } else if (SUCCESS_STATES.includes(job.status)) {
+        toast.success("Document added", { id: loadingId });
+      } else {
+        toast.error(`Ingest finished with status: ${job.status}`, {
+          id: loadingId,
+        });
       }
       await loadSources();
     } catch (err) {
       setStatus("error");
-      setResult(String(err));
+      const msg = extractErrorMessage(err, "Upload failed");
+      setResult(msg);
+      toast.error(msg, { id: loadingId });
     }
   }
 
   async function onDeleteSource(documentId: string) {
     setDeletingSource(documentId);
     setListError(null);
+    const loadingId = toast.loading("Deleting document…");
     try {
       const res = await fetch(`/api/chatbot/documents/${encodeURIComponent(documentId)}`, {
         method: "DELETE",
       });
       if (res.status === 404) {
         setListError("This document was already removed. The list has been refreshed.");
+        toast.info("Already removed — list refreshed", { id: loadingId });
         await loadSources();
         return;
       }
       const data = await parseJsonResponse<unknown>(res);
       if (!res.ok) {
-        setListError(formatApiErrorMessage(data, res.status));
+        const msg = formatApiErrorMessage(data, res.status);
+        setListError(msg);
+        toast.error(msg, { id: loadingId });
         return;
       }
+      toast.success("Document deleted", { id: loadingId });
       await loadSources();
     } catch (err) {
-      setListError(err instanceof Error ? err.message : String(err));
+      const msg = extractErrorMessage(err, "Delete failed");
+      setListError(msg);
+      toast.error(msg, { id: loadingId });
     } finally {
       setDeletingSource(null);
     }

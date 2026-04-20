@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type RoleOption = { id: string; slug: string; name: string; enabled: boolean; isSystem: boolean };
 type UserRow = {
@@ -89,6 +91,7 @@ export function UsersAdminClient() {
         setSaving(true);
         setError(null);
         setSuccess(null);
+        const loadingId = toast.loading("Saving roles…");
         try {
             const res = await fetch(`/api/admin/users/${selected.id}`, {
                 method: "PATCH",
@@ -100,8 +103,11 @@ export function UsersAdminClient() {
             const json = (await res.json()) as { user: UserRow };
             setUsers((prev) => prev.map((u) => (u.id === json.user.id ? json.user : u)));
             setSuccess("Roles updated. User may need to refresh or log in again to see new permissions.");
+            toast.success(`Roles updated for ${json.user.name}`, { id: loadingId });
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            const msg = extractErrorMessage(e, "Could not save roles");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
         } finally {
             setSaving(false);
         }

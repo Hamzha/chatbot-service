@@ -7,6 +7,7 @@ import { AuthCard } from "@repo/auth/components/AuthCard";
 import { FormButton as Button } from "@repo/ui/form-button";
 import { FormError } from "@repo/ui/form-error";
 import { PasswordInput } from "@repo/ui/password-input";
+import { toast } from "@/lib/ui/toast";
 
 function ResetPasswordContent() {
     const router = useRouter();
@@ -26,15 +27,18 @@ function ResetPasswordContent() {
 
         if (!token) {
             setError("Missing reset token.");
+            toast.error("Missing reset token.");
             return;
         }
 
         if (password !== confirmPassword) {
             setError("Passwords do not match.");
+            toast.error("Passwords do not match.");
             return;
         }
 
         setIsSubmitting(true);
+        const loadingId = toast.loading("Resetting password…");
 
         try {
             const response = await fetch("/api/auth/reset-password", {
@@ -46,17 +50,22 @@ function ResetPasswordContent() {
             const data = (await response.json()) as { message?: string; error?: string };
 
             if (!response.ok) {
-                setError(data.error || "Unable to reset password.");
+                const msg = data.error || "Unable to reset password.";
+                setError(msg);
+                toast.error(msg, { id: loadingId });
                 return;
             }
 
-            setSuccess(data.message || "Password reset successful.");
+            const successMsg = data.message || "Password reset successful.";
+            setSuccess(successMsg);
+            toast.success("Password reset — please log in", { id: loadingId });
 
             setTimeout(() => {
                 router.push("/login");
             }, 1200);
         } catch {
             setError("Unable to reset password.");
+            toast.error("Unable to reset password.", { id: loadingId });
         } finally {
             setIsSubmitting(false);
         }

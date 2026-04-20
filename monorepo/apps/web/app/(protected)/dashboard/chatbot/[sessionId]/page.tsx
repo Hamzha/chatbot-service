@@ -10,6 +10,8 @@ import {
   parseJsonResponse,
 } from "@/lib/chatbot/parseJsonResponse";
 import type { SessionSelectedDocRow } from "@/lib/chatbot/resolveSessionSelectedDocuments";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type JobStatus = {
   status: string;
@@ -229,20 +231,26 @@ export default function ChatSessionPage() {
     if (!sessionId) return;
     if (!confirm("Clear this conversation? This cannot be undone.")) return;
     setStatus("clearing");
+    const loadingId = toast.loading("Clearing conversation…");
     try {
       const res = await fetch(`/api/chatbot/messages?sessionId=${encodeURIComponent(sessionId)}`, {
         method: "DELETE",
       });
       const data = await parseJsonResponse<unknown>(res);
       if (!res.ok) {
-        setError(formatApiErrorMessage(data, res.status));
+        const msg = formatApiErrorMessage(data, res.status);
+        setError(msg);
+        toast.error(msg, { id: loadingId });
         return;
       }
       setMessages([]);
       setLastSources([]);
       setError(null);
+      toast.success("Conversation cleared", { id: loadingId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = extractErrorMessage(err, "Could not clear conversation");
+      setError(msg);
+      toast.error(msg, { id: loadingId });
     } finally {
       setStatus("idle");
     }

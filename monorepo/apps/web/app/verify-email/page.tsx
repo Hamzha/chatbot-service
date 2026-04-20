@@ -3,6 +3,7 @@
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "@/lib/ui/toast";
 
 function VerifyEmailContent() {
     const searchParams = useSearchParams();
@@ -17,6 +18,7 @@ function VerifyEmailContent() {
             if (!token) {
                 setStatus("error");
                 setMessage("No verification token provided.");
+                toast.error("No verification token provided.");
                 return;
             }
 
@@ -25,13 +27,16 @@ function VerifyEmailContent() {
                 const data = await response.json();
 
                 if (!response.ok) {
+                    const msg = data.error || "Verification failed.";
                     setStatus("error");
-                    setMessage(data.error || "Verification failed.");
+                    setMessage(msg);
+                    toast.error(msg);
                     return;
                 }
 
                 setStatus("success");
                 setMessage(data.message || "Email verified successfully!");
+                toast.success("Email verified");
 
                 setTimeout(() => {
                     router.push("/login");
@@ -39,6 +44,7 @@ function VerifyEmailContent() {
             } catch {
                 setStatus("error");
                 setMessage("Something went wrong. Please try again.");
+                toast.error("Something went wrong. Please try again.");
             }
         }
 

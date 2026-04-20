@@ -7,6 +7,7 @@ import type { SafeUser } from "@repo/auth/types";
 import { FormButton as Button } from "@repo/ui/form-button";
 import { FormError } from "@repo/ui/form-error";
 import { Input } from "@repo/ui/input";
+import { toast } from "@/lib/ui/toast";
 
 type RoleChip = { id: string; slug: string; name: string; enabled?: boolean };
 
@@ -36,6 +37,7 @@ export function ProfileClient({
         setError(null);
         setSuccess(null);
         setSaving(true);
+        const loadingId = toast.loading("Saving profile…");
         try {
             const res = await fetch("/api/auth/me", {
                 method: "PATCH",
@@ -45,15 +47,19 @@ export function ProfileClient({
             });
             const data = (await res.json()) as { user?: SafeUser; error?: string };
             if (!res.ok || !data.user) {
-                setError(data.error ?? "Could not save.");
+                const msg = data.error ?? "Could not save.";
+                setError(msg);
+                toast.error(msg, { id: loadingId });
                 setSaving(false);
                 return;
             }
             setUser(data.user);
             setSuccess("Profile updated.");
+            toast.success("Profile updated", { id: loadingId });
             router.refresh();
         } catch {
             setError("Could not save.");
+            toast.error("Could not save.", { id: loadingId });
         } finally {
             setSaving(false);
         }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type PermissionRow = { id: string; code: string; module: string; action: string; description: string };
 type RoleRow = {
@@ -122,6 +124,7 @@ export function RolesAdminClient() {
         if (!selected) return;
         setSaving(true);
         setError(null);
+        const loadingId = toast.loading("Saving role…");
         try {
             const res = await fetch(`/api/admin/roles/${selected.id}`, {
                 method: "PATCH",
@@ -136,8 +139,11 @@ export function RolesAdminClient() {
             if (!res.ok) throw new Error(await readError(res));
             const json = (await res.json()) as { role: RoleRow };
             setRoles((prev) => prev.map((r) => (r.id === json.role.id ? json.role : r)));
+            toast.success(`Role “${json.role.name}” updated`, { id: loadingId });
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            const msg = extractErrorMessage(e, "Could not save role");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
         } finally {
             setSaving(false);
         }
@@ -161,6 +167,8 @@ export function RolesAdminClient() {
         if (!confirm(`Delete role "${selected.name}"? This cannot be undone.`)) return;
         setSaving(true);
         setError(null);
+        const roleName = selected.name;
+        const loadingId = toast.loading("Deleting role…");
         try {
             let res = await deleteRoleRequest(selected.id, false);
             if (!res.ok) {
@@ -180,6 +188,7 @@ export function RolesAdminClient() {
                         res = await deleteRoleRequest(selected.id, true);
                         if (!res.ok) throw new Error(await readError(res));
                     } else {
+                        toast.dismiss(loadingId);
                         setSaving(false);
                         return;
                     }
@@ -190,8 +199,11 @@ export function RolesAdminClient() {
             const next = roles.filter((r) => r.id !== selected.id);
             setRoles(next);
             setSelectedId(next[0]?.id ?? null);
+            toast.success(`Role “${roleName}” deleted`, { id: loadingId });
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            const msg = extractErrorMessage(e, "Could not delete role");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
         } finally {
             setSaving(false);
         }
@@ -201,6 +213,7 @@ export function RolesAdminClient() {
         if (!selected || selected.isSystem) return;
         setSaving(true);
         setError(null);
+        const loadingId = toast.loading(next ? "Enabling role…" : "Disabling role…");
         try {
             const res = await fetch(`/api/admin/roles/${selected.id}`, {
                 method: "PATCH",
@@ -211,8 +224,14 @@ export function RolesAdminClient() {
             if (!res.ok) throw new Error(await readError(res));
             const json = (await res.json()) as { role: RoleRow };
             setRoles((prev) => prev.map((r) => (r.id === json.role.id ? json.role : r)));
+            toast.success(
+                `Role “${json.role.name}” ${next ? "enabled" : "disabled"}`,
+                { id: loadingId },
+            );
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            const msg = extractErrorMessage(e, "Could not update role");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
         } finally {
             setSaving(false);
         }
@@ -221,10 +240,12 @@ export function RolesAdminClient() {
     const createRole = async () => {
         if (!newName.trim() || !newSlug.trim()) {
             setError("New role needs a name and a slug.");
+            toast.error("New role needs a name and a slug.");
             return;
         }
         setSaving(true);
         setError(null);
+        const loadingId = toast.loading("Creating role…");
         try {
             const res = await fetch("/api/admin/roles", {
                 method: "POST",
@@ -245,8 +266,11 @@ export function RolesAdminClient() {
             setNewName("");
             setNewSlug("");
             setNewDesc("");
+            toast.success(`Role “${json.role.name}” created`, { id: loadingId });
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            const msg = extractErrorMessage(e, "Could not create role");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
         } finally {
             setSaving(false);
         }

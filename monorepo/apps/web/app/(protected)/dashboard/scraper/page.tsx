@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type ScrapedData = {
   url: string;
@@ -195,6 +197,7 @@ export default function ScraperPage() {
   async function onDeleteKbItem(documentId: string) {
     setKbDeleting(documentId);
     setKbError(null);
+    const loadingId = toast.loading("Deleting source…");
     try {
       const res = await fetch(`/api/chatbot/documents/${encodeURIComponent(documentId)}`, {
         method: "DELETE",
@@ -205,17 +208,23 @@ export default function ScraperPage() {
         setKbError(
           "This item was already removed. The list has been refreshed.",
         );
+        toast.info("Already removed — list refreshed", { id: loadingId });
         await loadKnowledgeBase();
         return;
       }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
-        setKbError(body.error || `Delete failed (${res.status})`);
+        const msg = body.error || `Delete failed (${res.status})`;
+        setKbError(msg);
+        toast.error(msg, { id: loadingId });
         return;
       }
+      toast.success("Source deleted", { id: loadingId });
       await loadKnowledgeBase();
     } catch (err) {
-      setKbError(err instanceof Error ? err.message : String(err));
+      const msg = extractErrorMessage(err, "Delete failed");
+      setKbError(msg);
+      toast.error(msg, { id: loadingId });
     } finally {
       setKbDeleting(null);
     }
@@ -284,6 +293,19 @@ export default function ScraperPage() {
         setCrawlLive(jobToLiveState(job));
         if (job.state === "completed" || job.state === "failed") {
           setCrawlResult(jobToCrawlResult(job));
+          if (job.state === "completed") {
+            const totalChunks = job.ingestedPages.reduce(
+              (a, p) => a + p.ingested,
+              0,
+            );
+            toast.success(
+              `Crawl finished — ${job.doneCount} page${job.doneCount === 1 ? "" : "s"}, ${totalChunks.toLocaleString()} chunks`,
+            );
+          } else {
+            toast.error(
+              job.error ? `Crawl failed: ${job.error}` : "Crawl failed",
+            );
+          }
           await loadKnowledgeBase();
           return;
         }
@@ -401,16 +423,29 @@ export default function ScraperPage() {
         });
         const data: ScrapeResponse = await res.json();
         setScrapeResult(data);
+        if (data.success) {
+          const ingested = data.ingestion?.ingested ?? 0;
+          toast.success(
+            ingested > 0
+              ? `Page scraped — ${ingested.toLocaleString()} chunks indexed`
+              : "Page scraped",
+          );
+        } else {
+          toast.error(data.error || "Scrape failed");
+        }
       } else {
+        toast.info("Crawl started");
         await startCrawlJob();
       }
       await loadKnowledgeBase();
     } catch (err) {
+      const msg = extractErrorMessage(err, "Request failed");
       if (action === "scrape") {
-        setScrapeResult({ success: false, error: String(err) });
+        setScrapeResult({ success: false, error: msg });
       } else {
-        setCrawlResult({ success: false, total_pages: 0, pages: [], failed_urls: [], error: String(err) });
+        setCrawlResult({ success: false, total_pages: 0, pages: [], failed_urls: [], error: msg });
       }
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

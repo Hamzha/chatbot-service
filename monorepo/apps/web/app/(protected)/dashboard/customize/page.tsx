@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { parseJsonResponse } from "@/lib/chatbot/parseJsonResponse";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type ChatbotRow = {
     id: string;
@@ -73,6 +75,7 @@ export default function CustomizePage() {
         if (!selectedChatbotId) return;
         setSaving(true);
         setMessage(null);
+        const loadingId = toast.loading("Saving widget color…");
         try {
             const res = await fetch(`/api/chatbot/sessions/${encodeURIComponent(selectedChatbotId)}`, {
                 method: "PATCH",
@@ -89,9 +92,12 @@ export default function CustomizePage() {
                 prev.map((chatbot) => (chatbot.id === selectedChatbotId ? { ...chatbot, primaryColor } : chatbot)),
             );
             setMessage({ type: "success", text: "Color saved!" });
+            toast.success("Widget color saved", { id: loadingId });
             window.setTimeout(() => setMessage(null), 3000);
         } catch (err) {
-            setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to save" });
+            const msg = extractErrorMessage(err, "Failed to save");
+            setMessage({ type: "error", text: msg });
+            toast.error(msg, { id: loadingId });
         } finally {
             setSaving(false);
         }

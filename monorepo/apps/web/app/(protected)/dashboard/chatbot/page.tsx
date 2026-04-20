@@ -8,6 +8,8 @@ import {
   formatApiErrorMessage,
   parseJsonResponse,
 } from "@/lib/chatbot/parseJsonResponse";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type ChatSessionRow = {
   id: string;
@@ -47,18 +49,24 @@ export default function ChatbotHubPage() {
     if (!confirm("Delete this chat and all of its messages?")) return;
     setDeletingId(sessionId);
     setError(null);
+    const loadingId = toast.loading("Deleting chatbot…");
     try {
       const res = await fetch(`/api/chatbot/sessions/${encodeURIComponent(sessionId)}`, {
         method: "DELETE",
       });
       const data = await parseJsonResponse<unknown>(res);
       if (!res.ok) {
-        setError(formatApiErrorMessage(data, res.status));
+        const msg = formatApiErrorMessage(data, res.status);
+        setError(msg);
+        toast.error(msg, { id: loadingId });
         return;
       }
+      toast.success("Chatbot deleted", { id: loadingId });
       await loadSessions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const msg = extractErrorMessage(err, "Delete failed");
+      setError(msg);
+      toast.error(msg, { id: loadingId });
     } finally {
       setDeletingId(null);
     }

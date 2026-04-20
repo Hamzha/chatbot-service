@@ -9,6 +9,8 @@ import {
   formatApiErrorMessage,
   parseJsonResponse,
 } from "@/lib/chatbot/parseJsonResponse";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
 type JobStatus = {
   status: string;
@@ -96,6 +98,7 @@ export default function NewChatbotPage() {
     if (!file) return;
     setUploadStatus("uploading");
     setUploadMessage("");
+    const loadingId = toast.loading(`Uploading ${file.name}…`);
     try {
       const fd = new FormData();
       fd.append("file", file);
@@ -121,17 +124,25 @@ export default function NewChatbotPage() {
         });
         if (!recordRes.ok) {
           const errBody = await parseJsonResponse<unknown>(recordRes).catch(() => null);
-          setUploadMessage(
-            errBody ? formatApiErrorMessage(errBody, recordRes.status) : "Could not finalize document record.",
-          );
+          const msg = errBody
+            ? formatApiErrorMessage(errBody, recordRes.status)
+            : "Could not finalize document record.";
+          setUploadMessage(msg);
+          toast.error(msg, { id: loadingId });
         } else {
           finalizeOk = true;
           setUploadMessage(`Added “${body.document?.source ?? file.name}” (${job.output.ingested} chunks).`);
+          toast.success(
+            `Document added — ${job.output.ingested.toLocaleString()} chunks indexed`,
+            { id: loadingId },
+          );
           setFile(null);
           if (fileInputRef.current) fileInputRef.current.value = "";
         }
       } else {
-        setUploadMessage(`Ingest status: ${job.status}`);
+        const msg = `Ingest status: ${job.status}`;
+        setUploadMessage(msg);
+        toast.error(msg, { id: loadingId });
       }
       await loadDocuments();
       if (finalizeOk) {
@@ -139,7 +150,9 @@ export default function NewChatbotPage() {
       }
     } catch (err) {
       setUploadStatus("error");
-      setUploadMessage(err instanceof Error ? err.message : String(err));
+      const msg = extractErrorMessage(err, "Upload failed");
+      setUploadMessage(msg);
+      toast.error(msg, { id: loadingId });
     }
   }
 
@@ -152,6 +165,7 @@ export default function NewChatbotPage() {
     }
     setCreating(true);
     setFormError(null);
+    const loadingId = toast.loading("Creating chatbot…");
     try {
       const res = await fetch("/api/chatbot/sessions", {
         method: "POST",
@@ -160,17 +174,23 @@ export default function NewChatbotPage() {
       });
       const data = await parseJsonResponse<{ session?: { id: string } }>(res);
       if (!res.ok) {
-        setFormError(formatApiErrorMessage(data, res.status));
+        const msg = formatApiErrorMessage(data, res.status);
+        setFormError(msg);
+        toast.error(msg, { id: loadingId });
         return;
       }
       const id = data.session?.id;
       if (!id) {
         setFormError("No session id returned.");
+        toast.error("No session id returned.", { id: loadingId });
         return;
       }
+      toast.success("Chatbot created", { id: loadingId });
       router.push(`/dashboard/chatbot/${id}`);
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : String(err));
+      const msg = extractErrorMessage(err, "Could not create chatbot");
+      setFormError(msg);
+      toast.error(msg, { id: loadingId });
     } finally {
       setCreating(false);
     }
