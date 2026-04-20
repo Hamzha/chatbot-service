@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type ScrapedData = {
   url: string;
@@ -14,10 +14,24 @@ type ScrapedData = {
   mode_used: string;
 };
 
+type IngestionSummary = {
+  ingested: number;
+  displaySource: string;
+  ragSourceKey: string;
+};
+
 type ScrapeResponse = {
   success: boolean;
   data?: ScrapedData;
+  ingestion?: IngestionSummary;
   error?: string;
+};
+
+type CrawlIngestedPage = {
+  url: string;
+  displaySource: string;
+  ragSourceKey: string;
+  ingested: number;
 };
 
 type CrawlResponse = {
@@ -25,7 +39,62 @@ type CrawlResponse = {
   total_pages: number;
   pages: ScrapedData[];
   failed_urls: { url: string; error: string }[];
+  ingestion?: { pages: CrawlIngestedPage[] };
   error?: string;
+};
+
+type KnowledgeBaseItem = {
+  id: string;
+  source: string;
+  ragSourceKey?: string;
+  chunks: number;
+  kind?: "upload" | "site";
+  pageCount?: number;
+};
+
+type CrawlLiveRow = {
+  url: string;
+  depth: number;
+  status: "visiting" | "done" | "failed";
+  chunks?: number;
+  error?: string;
+};
+
+type CrawlLiveState = {
+  jobId: string;
+  maxPages: number;
+  maxDepth: number;
+  startedAt: number;
+  rows: CrawlLiveRow[];
+  doneCount: number;
+  failedCount: number;
+  finished: boolean;
+};
+
+type CrawlJobRecord = {
+  id: string;
+  userId: string;
+  startUrl: string;
+  mode: string;
+  maxPages: number;
+  maxDepth: number;
+  state: "queued" | "running" | "completed" | "failed";
+  doneCount: number;
+  failedCount: number;
+  urls: Array<{
+    url: string;
+    depth: number;
+    status: "visiting" | "done" | "failed";
+    chunks?: number;
+    error?: string;
+    at: string;
+  }>;
+  ingestedPages: CrawlIngestedPage[];
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  finishedAt?: string;
 };
 
 type ActionType = "scrape" | "crawl";
@@ -82,6 +151,237 @@ export default function ScraperPage() {
   const [crawlResult, setCrawlResult] = useState<CrawlResponse | null>(null);
   const [expandedPage, setExpandedPage] = useState<number | null>(null);
 
+  const [kbItems, setKbItems] = useState<KnowledgeBaseItem[]>([]);
+  const [kbLoading, setKbLoading] = useState(true);
+  const [kbError, setKbError] = useState<string | null>(null);
+  const [kbDeleting, setKbDeleting] = useState<string | null>(null);
+
+  const [crawlLive, setCrawlLive] = useState<CrawlLiveState | null>(null);
+  const pollTokenRef = useRef(0);
+
+  async function loadKnowledgeBase() {
+    setKbLoading(true);
+    setKbError(null);
+    try {
+      const res = await fetch("/api/chatbot/documents");
+      const data = (await res.json().catch(() => ({}))) as {
+        sources?: KnowledgeBaseItem[];
+        error?: string;
+      };
+      if (!res.ok) {
+        setKbItems([]);
+        setKbError(data.error || `Failed to load knowledge base (${res.status})`);
+        return;
+      }
+      // "Scraped" = either the new site aggregator rows or legacy per-page rows
+      // whose ragSourceKey is a URL. This way the page surface both models during
+      // the transition period.
+      const onlyScraped = (data.sources ?? []).filter(
+        (s) => s.kind === "site" || /^https?:\/\//i.test(s.ragSourceKey ?? ""),
+      );
+      setKbItems(onlyScraped);
+    } catch (err) {
+      setKbItems([]);
+      setKbError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setKbLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadKnowledgeBase();
+  }, []);
+
+  async function onDeleteKbItem(documentId: string) {
+    setKbDeleting(documentId);
+    setKbError(null);
+    try {
+      const res = await fetch(`/api/chatbot/documents/${encodeURIComponent(documentId)}`, {
+        method: "DELETE",
+      });
+      if (res.status === 404) {
+        // Local list was stale (another tab deleted it, or the Mongo row was
+        // re-seeded). Refresh to re-sync and surface a non-scary message.
+        setKbError(
+          "This item was already removed. The list has been refreshed.",
+        );
+        await loadKnowledgeBase();
+        return;
+      }
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        setKbError(body.error || `Delete failed (${res.status})`);
+        return;
+      }
+      await loadKnowledgeBase();
+    } catch (err) {
+      setKbError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setKbDeleting(null);
+    }
+  }
+
+  function jobToLiveState(job: CrawlJobRecord): CrawlLiveState {
+    const startedAtTs = job.startedAt
+      ? new Date(job.startedAt).getTime()
+      : new Date(job.createdAt).getTime();
+    return {
+      jobId: job.id,
+      maxPages: job.maxPages,
+      maxDepth: job.maxDepth,
+      startedAt: Number.isFinite(startedAtTs) ? startedAtTs : Date.now(),
+      rows: job.urls.map((u) => ({
+        url: u.url,
+        depth: u.depth,
+        status: u.status,
+        chunks: u.chunks,
+        error: u.error,
+      })),
+      doneCount: job.doneCount,
+      failedCount: job.failedCount,
+      finished: job.state === "completed" || job.state === "failed",
+    };
+  }
+
+  function jobToCrawlResult(job: CrawlJobRecord): CrawlResponse {
+    return {
+      success: job.state === "completed",
+      total_pages: job.doneCount,
+      pages: [],
+      failed_urls: job.urls
+        .filter((u) => u.status === "failed")
+        .map((u) => ({ url: u.url, error: u.error ?? "Unknown error" })),
+      ingestion: { pages: job.ingestedPages },
+      error: job.error,
+    };
+  }
+
+  async function pollCrawlJob(jobId: string, token: number) {
+    const POLL_MS = 1000;
+    // Poll until the user starts another action (token bumps) or the job hits a terminal state.
+    while (pollTokenRef.current === token) {
+      try {
+        const res = await fetch(
+          `/api/scraper/crawl/jobs/${encodeURIComponent(jobId)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) {
+          if (res.status === 404) {
+            setCrawlResult({
+              success: false,
+              total_pages: 0,
+              pages: [],
+              failed_urls: [],
+              error: "Crawl job disappeared.",
+            });
+            return;
+          }
+          await new Promise((r) => setTimeout(r, POLL_MS));
+          continue;
+        }
+        const body = (await res.json()) as { job: CrawlJobRecord };
+        const job = body.job;
+        setCrawlLive(jobToLiveState(job));
+        if (job.state === "completed" || job.state === "failed") {
+          setCrawlResult(jobToCrawlResult(job));
+          await loadKnowledgeBase();
+          return;
+        }
+      } catch (err) {
+        console.error("poll crawl job failed:", err);
+      }
+      await new Promise((r) => setTimeout(r, POLL_MS));
+    }
+  }
+
+  async function startCrawlJob(): Promise<void> {
+    pollTokenRef.current += 1;
+    const token = pollTokenRef.current;
+    setCrawlLive({
+      jobId: "",
+      maxPages,
+      maxDepth,
+      startedAt: Date.now(),
+      rows: [],
+      doneCount: 0,
+      failedCount: 0,
+      finished: false,
+    });
+
+    let res: Response;
+    try {
+      res = await fetch("/api/scraper/crawl/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          url,
+          mode,
+          max_pages: maxPages,
+          max_depth: maxDepth,
+        }),
+      });
+    } catch (err) {
+      setCrawlResult({
+        success: false,
+        total_pages: 0,
+        pages: [],
+        failed_urls: [],
+        error: String(err),
+      });
+      setCrawlLive((prev) => (prev ? { ...prev, finished: true } : prev));
+      return;
+    }
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      setCrawlResult({
+        success: false,
+        total_pages: 0,
+        pages: [],
+        failed_urls: [],
+        error: body.error || `Could not start crawl (${res.status})`,
+      });
+      setCrawlLive((prev) => (prev ? { ...prev, finished: true } : prev));
+      return;
+    }
+
+    const body = (await res.json()) as { job: CrawlJobRecord };
+    setCrawlLive(jobToLiveState(body.job));
+    await pollCrawlJob(body.job.id, token);
+  }
+
+  async function resumeActiveCrawl() {
+    try {
+      const res = await fetch("/api/scraper/crawl/jobs", { cache: "no-store" });
+      if (!res.ok) return;
+      const body = (await res.json()) as { jobs: CrawlJobRecord[] };
+      const active = body.jobs.find(
+        (j) => j.state === "queued" || j.state === "running",
+      );
+      if (!active) return;
+      pollTokenRef.current += 1;
+      const token = pollTokenRef.current;
+      setAction("crawl");
+      setCrawlLive(jobToLiveState(active));
+      setLoading(true);
+      try {
+        await pollCrawlJob(active.id, token);
+      } finally {
+        setLoading(false);
+      }
+    } catch (err) {
+      console.error("resume active crawl failed:", err);
+    }
+  }
+
+  useEffect(() => {
+    resumeActiveCrawl();
+    return () => {
+      pollTokenRef.current += 1;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
@@ -89,6 +389,7 @@ export default function ScraperPage() {
     setLoading(true);
     setScrapeResult(null);
     setCrawlResult(null);
+    setCrawlLive(null);
     setExpandedPage(null);
 
     try {
@@ -101,14 +402,9 @@ export default function ScraperPage() {
         const data: ScrapeResponse = await res.json();
         setScrapeResult(data);
       } else {
-        const res = await fetch("/api/scraper/crawl", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, mode, max_pages: maxPages, max_depth: maxDepth }),
-        });
-        const data: CrawlResponse = await res.json();
-        setCrawlResult(data);
+        await startCrawlJob();
       }
+      await loadKnowledgeBase();
     } catch (err) {
       if (action === "scrape") {
         setScrapeResult({ success: false, error: String(err) });
@@ -266,13 +562,17 @@ export default function ScraperPage() {
 
         {/* Results pane */}
         <section className="min-w-0">
-          {!hasResult && !loading && <EmptyResults action={action} />}
-          {loading && <LoadingResults action={action} />}
+          {!hasResult && !loading && !crawlLive && <EmptyResults action={action} />}
+          {loading && action === "scrape" && <LoadingResults action="scrape" />}
+          {action === "crawl" && crawlLive && !crawlResult && (
+            <CrawlProgressPanel state={crawlLive} />
+          )}
 
           {scrapeResult && !loading && (
             scrapeResult.success && scrapeResult.data ? (
               <ScrapeResultView
                 data={scrapeResult.data}
+                ingestion={scrapeResult.ingestion}
                 onDownload={() => {
                   const text = formatPageToText(scrapeResult.data!);
                   const hostname = new URL(scrapeResult.data!.url).hostname;
@@ -302,9 +602,139 @@ export default function ScraperPage() {
               <ErrorBox error={crawlResult.error} />
             )
           )}
+
+          {/* Knowledge base list — shared with Upload Document */}
+          <KnowledgeBaseList
+            items={kbItems}
+            loading={kbLoading}
+            error={kbError}
+            deletingId={kbDeleting}
+            onDelete={onDeleteKbItem}
+            className="mt-6"
+          />
         </section>
       </div>
     </div>
+  );
+}
+
+function KnowledgeBaseList({
+  items,
+  loading,
+  error,
+  deletingId,
+  onDelete,
+  className,
+}: {
+  items: KnowledgeBaseItem[];
+  loading: boolean;
+  error: string | null;
+  deletingId: string | null;
+  onDelete: (id: string) => void;
+  className?: string;
+}) {
+  const totalChunks = items.reduce((sum, s) => sum + s.chunks, 0);
+  return (
+    <section className={`glass-strong rounded-2xl p-6 ${className ?? ""}`}>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">
+            Knowledge base
+          </p>
+          <h2 className="mt-0.5 text-lg font-semibold text-slate-900">
+            Scraped pages
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Only pages you&apos;ve scraped or crawled are listed here. Uploaded PDFs live on the Upload Document page.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <div className="glass-muted rounded-xl px-4 py-2 text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Items
+            </p>
+            <p className="text-lg font-semibold text-slate-900">{items.length}</p>
+          </div>
+          <div className="glass-muted rounded-xl px-4 py-2 text-right">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              Total chunks
+            </p>
+            <p className="text-lg font-semibold text-slate-900">
+              {totalChunks.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </header>
+
+      {error && (
+        <p className="mt-4 rounded-xl bg-amber-50/70 px-4 py-2 text-sm text-amber-900">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-5">
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="inline-block h-7 w-7 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600" />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="glass rounded-2xl py-10 text-center text-sm text-slate-500">
+            No scraped pages yet. Run a scrape or crawl above to index a URL.
+          </div>
+        ) : (
+          <ul className="space-y-2">
+            {items.map((item) => {
+              const isUrl = /^https?:\/\//i.test(item.ragSourceKey ?? "");
+              const isSite = item.kind === "site";
+              const pageCount = item.pageCount ?? 0;
+              return (
+                <li
+                  key={item.id}
+                  className="glass flex items-center gap-3 rounded-xl px-4 py-3"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-700/10">
+                    {isUrl ? (
+                      <svg className="h-5 w-5 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13.828 10.172a4 4 0 015.656 0l.707.707a4 4 0 010 5.656l-3.182 3.182a4 4 0 01-5.656 0l-.707-.707m-1.414-7.071l-.707-.707a4 4 0 010-5.656L11.707 2.79a4 4 0 015.656 0l.707.707" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium text-slate-900">{item.source}</p>
+                      {isSite ? (
+                        <span className="shrink-0 rounded-full bg-brand-700/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+                          Site
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      {isSite
+                        ? `${pageCount.toLocaleString()} ${pageCount === 1 ? "page" : "pages"} · ${item.chunks.toLocaleString()} chunks`
+                        : `${item.chunks.toLocaleString()} chunks`}
+                      {isUrl && !isSite && item.ragSourceKey ? ` · ${item.ragSourceKey}` : ""}
+                      {isSite && item.ragSourceKey ? ` · ${item.ragSourceKey}` : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(item.id)}
+                    disabled={deletingId === item.id}
+                    className="shrink-0 rounded-lg border border-rose-300/70 bg-white/40 px-3 py-1.5 text-xs font-medium text-rose-700 backdrop-blur hover:bg-rose-50/60 disabled:opacity-50 transition-colors"
+                  >
+                    {deletingId === item.id ? "Deleting..." : "Delete"}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -342,7 +772,145 @@ function LoadingResults({ action }: { action: ActionType }) {
   );
 }
 
-function ScrapeResultView({ data, onDownload }: { data: ScrapedData; onDownload: () => void }) {
+function CrawlProgressPanel({ state }: { state: CrawlLiveState }) {
+  const { rows, maxPages, maxDepth, doneCount, failedCount, finished, startedAt } = state;
+  const visitingRow = rows.find((r) => r.status === "visiting");
+  const progressPct = Math.min(100, Math.round((doneCount / Math.max(1, maxPages)) * 100));
+  const elapsedSec = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+
+  // Newest first so the active URL is near the top
+  const ordered = rows.slice().reverse();
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-strong rounded-2xl p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {!finished ? (
+              <div className="inline-block h-8 w-8 shrink-0 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600" />
+            ) : (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100/70">
+                <svg className="h-4 w-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">
+                {finished
+                  ? "Crawl finished"
+                  : visitingRow
+                    ? "Crawling site"
+                    : "Starting crawl…"}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">
+                {visitingRow ? `Visiting: ${visitingRow.url}` : `Elapsed ${elapsedSec}s`}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3 text-right">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Done</p>
+              <p className="text-base font-semibold text-brand-800">
+                {doneCount} / {maxPages}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Failed</p>
+              <p
+                className={`text-base font-semibold ${
+                  failedCount > 0 ? "text-amber-700" : "text-slate-500"
+                }`}
+              >
+                {failedCount}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Depth</p>
+              <p className="text-base font-semibold text-slate-700">{maxDepth}</p>
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-white/50">
+          <div
+            className="h-full bg-brand-600 transition-all duration-300"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+      </div>
+
+      <div className="glass rounded-2xl p-2">
+        {rows.length === 0 ? (
+          <div className="py-8 text-center text-sm text-slate-500">
+            Waiting for the first URL…
+          </div>
+        ) : (
+          <ul className="divide-y divide-white/30 max-h-[480px] overflow-y-auto">
+            {ordered.map((row) => (
+              <li
+                key={row.url}
+                className="flex items-center gap-3 px-4 py-2.5"
+              >
+                <CrawlRowStatus status={row.status} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm text-slate-900">{row.url}</p>
+                  {row.status === "failed" && row.error && (
+                    <p className="truncate text-xs text-rose-600">{row.error}</p>
+                  )}
+                </div>
+                <span className="shrink-0 glass-muted rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-600">
+                  d{row.depth}
+                </span>
+                {row.status === "done" && (
+                  <span className="shrink-0 text-xs font-medium text-slate-600">
+                    {row.chunks != null ? `${row.chunks.toLocaleString()} chunks` : "indexed"}
+                  </span>
+                )}
+                {row.status === "visiting" && (
+                  <span className="shrink-0 text-xs font-medium text-brand-700">crawling…</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CrawlRowStatus({ status }: { status: CrawlLiveRow["status"] }) {
+  if (status === "visiting") {
+    return (
+      <span className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-brand-600" />
+    );
+  }
+  if (status === "done") {
+    return (
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-100/80">
+        <svg className="h-3 w-3 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+        </svg>
+      </span>
+    );
+  }
+  return (
+    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-rose-100/80">
+      <svg className="h-3 w-3 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    </span>
+  );
+}
+
+function ScrapeResultView({
+  data,
+  ingestion,
+  onDownload,
+}: {
+  data: ScrapedData;
+  ingestion?: IngestionSummary;
+  onDownload: () => void;
+}) {
   return (
     <div className="space-y-5">
       {/* Status + actions bar */}
@@ -365,6 +933,22 @@ function ScrapeResultView({ data, onDownload }: { data: ScrapedData; onDownload:
         </button>
       </div>
 
+      {ingestion && ingestion.ingested > 0 && (
+        <div className="glass flex items-center gap-3 rounded-2xl border-brand-300/60 px-5 py-4">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-100/70">
+            <svg className="h-5 w-5 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-brand-800">
+              Added to your knowledge base · {ingestion.ingested.toLocaleString()} chunks indexed
+            </p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">{ingestion.displaySource}</p>
+          </div>
+        </div>
+      )}
+
       <PageResult data={data} />
     </div>
   );
@@ -386,10 +970,19 @@ function CrawlResultView({
       {/* Stats bar */}
       <div className="glass-strong rounded-2xl p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Stat label="Pages crawled" value={String(result.total_pages)} tone="brand" />
             <Stat label="Failed" value={String(result.failed_urls.length)} tone={result.failed_urls.length ? "warn" : "muted"} />
-            <Stat label="Status" value="Done" tone="success" />
+            <Stat
+              label="Indexed"
+              value={String(result.ingestion?.pages.length ?? 0)}
+              tone="success"
+            />
+            <Stat
+              label="Chunks"
+              value={(result.ingestion?.pages.reduce((a, p) => a + p.ingested, 0) ?? 0).toLocaleString()}
+              tone="brand"
+            />
           </div>
           <button
             type="button"
@@ -403,6 +996,24 @@ function CrawlResultView({
           </button>
         </div>
       </div>
+
+      {result.ingestion && result.ingestion.pages.length > 0 && (
+        <div className="glass rounded-2xl border-brand-300/60 p-5">
+          <h3 className="text-sm font-semibold text-brand-800 mb-3">
+            Added to your knowledge base ({result.ingestion.pages.length})
+          </h3>
+          <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+            {result.ingestion.pages.map((p, i) => (
+              <li key={i} className="text-xs text-slate-700 flex justify-between gap-3">
+                <span className="truncate min-w-0 flex-1">{p.displaySource}</span>
+                <span className="shrink-0 font-medium text-slate-500">
+                  {p.ingested.toLocaleString()} chunks
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Page list */}
       <div className="glass rounded-2xl p-2">

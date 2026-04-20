@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { expandSessionRagKeys } from "@/lib/chatbot/expandSessionRagKeys";
 import { formatConversationContext } from "@/lib/chatbot/formatConversationContext";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
@@ -31,6 +32,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "This chat has no documents selected" }, { status: 400 });
   }
 
+  // Expand site-aggregator keys to the full page-level key list at query time so that
+  // re-crawls that add pages automatically become visible to existing sessions without
+  // any session-level migration.
+  const expandedSourceIds = await expandSessionRagKeys(userId, session.selectedRagKeys);
+  if (expandedSourceIds.length === 0) {
+    return NextResponse.json(
+      { error: "The documents selected for this chat no longer have indexed content" },
+      { status: 400 },
+    );
+  }
+
   const priorMessages = await listChatbotMessages(userId, body.sessionId.trim(), 80);
   const conversation_context = formatConversationContext(
     priorMessages.map((m) => ({ role: m.role, content: m.content })),
@@ -38,7 +50,7 @@ export async function POST(request: Request) {
   const payload = {
     question: body.question.trim(),
     top_k: body.top_k ?? 4,
-    source_ids: session.selectedRagKeys,
+    source_ids: expandedSourceIds,
     ...(conversation_context ? { conversation_context } : {}),
   };
   try {

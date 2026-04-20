@@ -6,8 +6,12 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 
-async def fetch_static(url: str) -> str:
-    """Fetch HTML from a URL using httpx (no JavaScript rendering)."""
+async def fetch_static(url: str) -> tuple[str, str]:
+    """Fetch HTML from a URL using httpx (no JavaScript rendering).
+
+    Returns `(html, final_url)`. `final_url` is the URL after any HTTP
+    redirects so callers can resolve relative links against the true host.
+    """
     settings = get_settings()
     headers = get_random_headers()
 
@@ -23,5 +27,9 @@ async def fetch_static(url: str) -> str:
                 f"HTTP {response.status_code}: Failed to fetch {url}"
             )
 
-        logger.info(f"Static fetch OK: {url} ({response.status_code})")
-        return response.text
+        final_url = str(response.url)
+        if final_url != url:
+            logger.info(f"Static fetch OK: {url} → {final_url} ({response.status_code})")
+        else:
+            logger.info(f"Static fetch OK: {url} ({response.status_code})")
+        return response.text, final_url

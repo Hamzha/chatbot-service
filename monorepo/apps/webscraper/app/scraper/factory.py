@@ -22,24 +22,34 @@ async def scrape(
     1. If mode is "static" or "dynamic" → use that directly
     2. If mode is "auto" → fetch with httpx first, detect if dynamic
     3. Parse the HTML into structured data
+
+    `ScrapedData.url` reflects the **final** URL after any redirects so
+    callers (notably the BFS crawler) resolve relative links against the
+    right host.
     """
 
     if mode == ScrapeMode.STATIC:
-        html = await retry_with_backoff(fetch_static, url)
-        return parse_html(html, url, mode_used="static")
+        html, final_url = await retry_with_backoff(fetch_static, url)
+        return parse_html(html, final_url, mode_used="static")
 
     if mode == ScrapeMode.DYNAMIC:
-        html = await retry_with_backoff(fetch_dynamic, url, wait_for_selector)
-        return parse_html(html, url, mode_used="dynamic")
+        html, final_url = await retry_with_backoff(
+            fetch_dynamic, url, wait_for_selector
+        )
+        return parse_html(html, final_url, mode_used="dynamic")
 
     # AUTO mode: try static first, detect if we need dynamic
     logger.info(f"Auto-detecting scrape mode for {url}")
-    html = await retry_with_backoff(fetch_static, url)
+    html, final_url = await retry_with_backoff(fetch_static, url)
 
     if is_dynamic_content(html):
         logger.info(f"Detected dynamic content, switching to Playwright: {url}")
-        html = await retry_with_backoff(fetch_dynamic, url, wait_for_selector)
-        return parse_html(html, url, mode_used="dynamic")
+        # Re-fetch via Playwright using the ORIGINAL URL (the server may serve
+        # different content for JS clients) and take Playwright's final URL.
+        html, final_url = await retry_with_backoff(
+            fetch_dynamic, url, wait_for_selector
+        )
+        return parse_html(html, final_url, mode_used="dynamic")
 
     logger.info(f"Static content detected: {url}")
-    return parse_html(html, url, mode_used="static")
+    return parse_html(html, final_url, mode_used="static")

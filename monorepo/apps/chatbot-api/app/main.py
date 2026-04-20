@@ -18,8 +18,8 @@ from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 from app.config import settings
-from app.contracts import IngestInput, QueryInput, QueryRequest
-from app.engine import IngestPdfUseCase, QueryRagUseCase
+from app.contracts import IngestInput, IngestTextInput, IngestTextRequest, QueryInput, QueryRequest
+from app.engine import IngestPdfUseCase, IngestTextUseCase, QueryRagUseCase
 from app.providers import build_provider_clients
 from app.vector_store import ChromaVectorStore
 
@@ -38,6 +38,7 @@ app.add_middleware(
 embedder, generator = build_provider_clients()
 store = ChromaVectorStore()
 ingest_use_case = IngestPdfUseCase(embedder=embedder, store=store)
+ingest_text_use_case = IngestTextUseCase(embedder=embedder, store=store)
 query_use_case = QueryRagUseCase(embedder=embedder, generator=generator, store=store)
 
 inngest_client = inngest.Inngest(
@@ -128,6 +129,21 @@ async def ingest(
         )
     )
     return {"event_ids": event_ids, "source_id": rag_key}
+
+
+@app.post("/v1/ingest-text")
+async def ingest_text(
+    body: IngestTextRequest,
+    x_user_id: str | None = Header(default=None),
+):
+    """Ingest plain text (e.g. web scrape) into Chroma for the authenticated user."""
+    if not x_user_id or not x_user_id.strip():
+        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+    uid = x_user_id.strip()
+    sid = body.source_id.strip()
+    payload = IngestTextInput(user_id=uid, source_id=sid, text_content=body.text_content)
+    result = ingest_text_use_case.execute(payload)
+    return {"ingested": result.ingested, "source_id": result.source}
 
 
 def _normalize_source_ids(raw: list[str] | None) -> list[str] | None:

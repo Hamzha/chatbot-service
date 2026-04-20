@@ -21,6 +21,7 @@ type SourceItem = {
   source: string;
   ragSourceKey?: string;
   chunks: number;
+  kind?: "upload" | "site";
 };
 
 const SUCCESS_STATES = ["Completed", "Succeeded", "Success", "Finished"];
@@ -66,7 +67,8 @@ export default function UploadDocumentPage() {
         setListError(formatApiErrorMessage(data, res.status));
         return;
       }
-      setSources(data.sources ?? []);
+      // The upload page only manages file uploads; scraped site aggregators live on /scraper.
+      setSources((data.sources ?? []).filter((s) => s.kind !== "site"));
     } catch (err) {
       setSources([]);
       setListError(err instanceof Error ? err.message : String(err));
@@ -147,6 +149,11 @@ export default function UploadDocumentPage() {
       const res = await fetch(`/api/chatbot/documents/${encodeURIComponent(documentId)}`, {
         method: "DELETE",
       });
+      if (res.status === 404) {
+        setListError("This document was already removed. The list has been refreshed.");
+        await loadSources();
+        return;
+      }
       const data = await parseJsonResponse<unknown>(res);
       if (!res.ok) {
         setListError(formatApiErrorMessage(data, res.status));

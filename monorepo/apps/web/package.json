@@ -10,8 +10,8 @@
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit",
     "seed:widget-chatbot": "node scripts/seed-widget-chatbot.js",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --hookTimeout=600000",
+    "test:watch": "vitest --hookTimeout=600000"
   },
   "dependencies": {
     "@repo/auth": "*",
@@ -33,6 +33,7 @@
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "eslint": "^9.39.1",
+    "mongodb-memory-server": "^11.0.1",
     "tailwindcss": "^4",
     "typescript": "5.9.2",
     "vitest": "^3.2.4"

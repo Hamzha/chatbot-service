@@ -9,8 +9,17 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 
-def _run_playwright_sync(url: str, wait_for_selector: Optional[str], headers: dict, timeout_ms: int) -> str:
-    """Run Playwright in sync mode (called from a thread)."""
+def _run_playwright_sync(
+    url: str,
+    wait_for_selector: Optional[str],
+    headers: dict,
+    timeout_ms: int,
+) -> tuple[str, str]:
+    """Run Playwright in sync mode (called from a thread).
+
+    Returns `(html, final_url)` — `final_url` is `page.url` AFTER navigation,
+    which reflects any redirects or client-side navigations.
+    """
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -37,22 +46,31 @@ def _run_playwright_sync(url: str, wait_for_selector: Optional[str], headers: di
                 page.wait_for_selector(wait_for_selector, timeout=timeout_ms)
 
             html = page.content()
-            logger.info(f"Dynamic fetch OK: {url}")
-            return html
+            final_url = page.url
+            if final_url != url:
+                logger.info(f"Dynamic fetch OK: {url} → {final_url}")
+            else:
+                logger.info(f"Dynamic fetch OK: {url}")
+            return html, final_url
 
         finally:
             context.close()
             browser.close()
 
 
-async def fetch_dynamic(url: str, wait_for_selector: Optional[str] = None) -> str:
-    """Fetch fully rendered HTML using Playwright (handles JavaScript)."""
+async def fetch_dynamic(
+    url: str, wait_for_selector: Optional[str] = None
+) -> tuple[str, str]:
+    """Fetch fully rendered HTML using Playwright (handles JavaScript).
+
+    Returns `(html, final_url)`.
+    """
     settings = get_settings()
     headers = get_random_headers()
 
     # Run sync Playwright in a separate thread to avoid Windows event loop issues
     loop = asyncio.get_event_loop()
-    html = await loop.run_in_executor(
+    result = await loop.run_in_executor(
         None,
         partial(
             _run_playwright_sync,
@@ -62,4 +80,4 @@ async def fetch_dynamic(url: str, wait_for_selector: Optional[str] = None) -> st
             settings.playwright_timeout_ms,
         ),
     )
-    return html
+    return result

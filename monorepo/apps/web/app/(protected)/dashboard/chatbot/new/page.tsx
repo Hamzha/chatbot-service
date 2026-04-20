@@ -19,6 +19,8 @@ type LibraryDoc = {
   id: string;
   source: string;
   chunks: number;
+  kind?: "upload" | "site";
+  pageCount?: number;
 };
 
 const SUCCESS_STATES = ["Completed", "Succeeded", "Success", "Finished"];
@@ -274,22 +276,35 @@ export default function NewChatbotPage() {
               </p>
             ) : (
               <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-xl border border-white/40 bg-white/20 p-2">
-                {documents.map((d) => (
-                  <li key={d.id}>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/40">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(d.id)}
-                        onChange={() => toggleDoc(d.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-brand-700"
-                      />
-                      <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{d.source}</span>
-                      <span className="shrink-0 text-xs text-slate-500">
-                        {d.chunks === 0 ? "Pending" : `${d.chunks} chunks`}
-                      </span>
-                    </label>
-                  </li>
-                ))}
+                {documents.map((d) => {
+                  const isSite = d.kind === "site";
+                  const pageCount = d.pageCount ?? 0;
+                  return (
+                    <li key={d.id}>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/40">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(d.id)}
+                          onChange={() => toggleDoc(d.id)}
+                          className="h-4 w-4 rounded border-slate-300 text-brand-700"
+                        />
+                        <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{d.source}</span>
+                        {isSite ? (
+                          <span className="shrink-0 rounded-full bg-brand-700/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-700">
+                            Site
+                          </span>
+                        ) : null}
+                        <span className="shrink-0 text-xs text-slate-500">
+                          {d.chunks === 0
+                            ? "Pending"
+                            : isSite
+                              ? `${pageCount} ${pageCount === 1 ? "page" : "pages"} · ${d.chunks} chunks`
+                              : `${d.chunks} chunks`}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

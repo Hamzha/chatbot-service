@@ -176,10 +176,22 @@ export const RBAC_CORE_ENFORCEMENT_POINTS = [
         feature: "Scraper — run scrape",
     },
     {
-        id: "api.scraper.crawl.POST",
+        id: "api.scraper.crawl.jobs.collection.GET",
         permission: "scraper:create",
         surfaces: ["api"],
-        feature: "Scraper — run crawl",
+        feature: "Scraper — list crawl jobs",
+    },
+    {
+        id: "api.scraper.crawl.jobs.collection.POST",
+        permission: "scraper:create",
+        surfaces: ["api"],
+        feature: "Scraper — start crawl job",
+    },
+    {
+        id: "api.scraper.crawl.jobs.item.GET",
+        permission: "scraper:create",
+        surfaces: ["api"],
+        feature: "Scraper — poll crawl job",
     },
     {
         id: "page.dashboard.admin.users",

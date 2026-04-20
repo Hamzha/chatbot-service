@@ -43,6 +43,8 @@ export async function GET() {
             source: r.source,
             ragSourceKey: r.ragSourceKey,
             chunks: r.chunks,
+            kind: r.kind,
+            pageCount: r.kind === "site" ? r.pages.length : 0,
         })),
     });
 }

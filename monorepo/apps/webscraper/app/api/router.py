@@ -1,26 +1,31 @@
+import json
 from fastapi import APIRouter, HTTPException
-from app.api.schemas import ScrapeRequest, ScrapeResponse, CrawlRequest, CrawlResponse
+from fastapi.responses import StreamingResponse
+from app.api.schemas import ScrapeRequest, ScrapeResponse, CrawlRequest
 from app.scraper.factory import scrape
-from app.scraper.crawler import crawl_website
+from app.scraper.crawler import crawl_website_stream
 from app.config import get_settings
 from urllib.parse import urlparse
 
 router = APIRouter()
 
 
-@router.post("/scrape", response_model=ScrapeResponse)
-async def scrape_url(request: ScrapeRequest):
-    """Scrape a URL and return structured data."""
-
-    # Check domain allowlist
+def _check_domain(url: str) -> None:
     settings = get_settings()
     if settings.allowed_domains:
-        hostname = urlparse(str(request.url)).hostname
+        hostname = urlparse(url).hostname
         if hostname not in settings.allowed_domains:
             raise HTTPException(
                 status_code=403,
                 detail=f"Domain '{hostname}' is not in the allowed list",
             )
+
+
+@router.post("/scrape", response_model=ScrapeResponse)
+async def scrape_url(request: ScrapeRequest):
+    """Scrape a URL and return structured data."""
+
+    _check_domain(str(request.url))
 
     try:
         data = await scrape(
@@ -33,32 +38,32 @@ async def scrape_url(request: ScrapeRequest):
         return ScrapeResponse(success=False, error=str(e))
 
 
-@router.post("/crawl", response_model=CrawlResponse)
-async def crawl_url(request: CrawlRequest):
-    """Crawl an entire website and return structured data for all pages."""
+@router.post("/crawl/stream")
+async def crawl_stream(request: CrawlRequest):
+    """Crawl a website and stream progress as NDJSON. One JSON event per line.
 
-    # Check domain allowlist
-    settings = get_settings()
-    if settings.allowed_domains:
-        hostname = urlparse(str(request.url)).hostname
-        if hostname not in settings.allowed_domains:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Domain '{hostname}' is not in the allowed list",
-            )
+    Consumed by the Next.js crawl-job worker (`lib/scraper/crawlJobWorker.ts`).
+    """
 
-    try:
-        pages, failed = await crawl_website(
-            start_url=str(request.url),
-            mode=request.mode,
-            max_pages=request.max_pages,
-            max_depth=request.max_depth,
-        )
-        return CrawlResponse(
-            success=True,
-            total_pages=len(pages),
-            pages=pages,
-            failed_urls=failed,
-        )
-    except Exception as e:
-        return CrawlResponse(success=False, error=str(e))
+    _check_domain(str(request.url))
+
+    async def event_generator():
+        try:
+            async for evt in crawl_website_stream(
+                start_url=str(request.url),
+                mode=request.mode,
+                max_pages=request.max_pages,
+                max_depth=request.max_depth,
+            ):
+                yield json.dumps(evt) + "\n"
+        except Exception as e:
+            yield json.dumps({"type": "error", "error": str(e)}) + "\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
+    )

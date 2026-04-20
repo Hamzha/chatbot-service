@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import hashlib
 
-from app.contracts import IngestInput, IngestOutput, QueryInput, QueryOutput
-from app.pdf_loader import load_and_chunk_pdf
+from app.contracts import IngestInput, IngestOutput, IngestTextInput, QueryInput, QueryOutput
+from app.pdf_loader import chunk_text, load_and_chunk_pdf
 from app.providers import Embedder, Generator
 from app.vector_store import ChromaVectorStore
 
@@ -21,6 +21,30 @@ class IngestPdfUseCase:
         chunks = load_and_chunk_pdf(data.pdf_path)
         if not chunks:
             return IngestOutput(ingested=0, source=data.source_id)
+        vectors = self.embedder.embed_texts(chunks)
+        ids = [_deterministic_id(data.user_id, data.source_id, i) for i in range(len(chunks))]
+        self.store.upsert(
+            ids=ids,
+            vectors=vectors,
+            docs=chunks,
+            sources=[data.source_id] * len(chunks),
+            user_ids=[data.user_id] * len(chunks),
+        )
+        return IngestOutput(ingested=len(chunks), source=data.source_id)
+
+
+class IngestTextUseCase:
+    """Chunk plain text (e.g. scraped HTML), embed, and upsert into Chroma for RAG."""
+
+    def __init__(self, embedder: Embedder, store: ChromaVectorStore) -> None:
+        self.embedder = embedder
+        self.store = store
+
+    def execute(self, data: IngestTextInput) -> IngestOutput:
+        chunks = chunk_text(data.text_content)
+        if not chunks:
+            return IngestOutput(ingested=0, source=data.source_id)
+        self.store.delete_source(user_id=data.user_id, source_id=data.source_id)
         vectors = self.embedder.embed_texts(chunks)
         ids = [_deterministic_id(data.user_id, data.source_id, i) for i in range(len(chunks))]
         self.store.upsert(
