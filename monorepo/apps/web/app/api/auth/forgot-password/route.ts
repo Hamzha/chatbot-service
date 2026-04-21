@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { mapAuthError, requestPasswordReset } from "@/lib/auth/authService";
+import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 
 export async function POST(request: Request) {
+    const limited = await requireRateLimitByIp(request, "auth:forgot-password", { limit: 3, windowSec: 900 });
+    if (limited) return limited;
+
     try {
         const body = (await request.json()) as { email: string };
         await requestPasswordReset({ email: body.email });

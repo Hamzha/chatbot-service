@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { registerScrapedDocument } from "@/lib/scraper/registerScrapedDocument";
 
 const SCRAPER_API_URL = process.env.SCRAPER_API_URL || "http://localhost:8000";
@@ -9,6 +10,9 @@ export async function POST(req: NextRequest) {
         const gate = await requireUserIdWithPermission("scraper:create");
         if (gate instanceof NextResponse) return gate;
         const { userId } = gate;
+
+        const limited = await requireRateLimitByUser(userId, "scraper:scrape", { limit: 20, windowSec: 60 });
+        if (limited) return limited;
 
         const body = await req.json();
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { createCrawlJob, listCrawlJobsForUser } from "@/lib/db/crawlJobRepo";
 import { runCrawlJob } from "@/lib/scraper/crawlJobWorker";
 
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest) {
     const gate = await requireUserIdWithPermission("scraper:create");
     if (gate instanceof NextResponse) return gate;
     const { userId } = gate;
+
+    const limited = await requireRateLimitByUser(userId, "scraper:crawl", { limit: 5, windowSec: 60 });
+    if (limited) return limited;
 
     let body: unknown;
     try {

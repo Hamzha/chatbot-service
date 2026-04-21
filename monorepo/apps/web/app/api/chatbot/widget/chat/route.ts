@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { validateWidgetRequest } from "@/lib/chatbot/validateWidgetRequest";
+import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 
 export async function POST(request: Request) {
+  const limited = await requireRateLimitByIp(request, "widget:chat", { limit: 30, windowSec: 60 });
+  if (limited) return limited;
+
   let body: unknown;
   try {
     body = await request.json();

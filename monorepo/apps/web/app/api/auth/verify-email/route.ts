@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyEmailToken } from "@repo/auth/lib/tokens";
+import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 import { verifyUserEmail } from "@/lib/db/userRepo";
 
 export async function GET(request: NextRequest) {
+    const limited = await requireRateLimitByIp(request, "auth:verify-email", { limit: 10, windowSec: 900 });
+    if (limited) return limited;
+
     try {
         const searchParams = request.nextUrl.searchParams;
         const token = searchParams.get("token");

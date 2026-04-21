@@ -2,11 +2,15 @@ import { NextResponse } from "next/server";
 import { ensureRbacSeeded } from "@/lib/db/rbacSeed";
 import { ensureDemoUsers, getResolvedDemoCredentials } from "@/lib/db/demoUsers";
 import { login, mapAuthError } from "@/lib/auth/authService";
+import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 import { setSessionCookie } from "@repo/auth/lib/cookies";
 
 type Preset = "admin" | "user";
 
 export async function POST(request: Request) {
+    const limited = await requireRateLimitByIp(request, "auth:demo-login", { limit: 5, windowSec: 900 });
+    if (limited) return limited;
+
     if (process.env.ALLOW_DEMO_LOGIN !== "true") {
         return NextResponse.json({ error: "Demo login is disabled." }, { status: 404 });
     }

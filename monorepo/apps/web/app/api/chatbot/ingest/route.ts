@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { createPendingChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
@@ -8,6 +9,9 @@ export async function POST(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_documents:create");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
+
+  const limited = await requireRateLimitByUser(userId, "chatbot:ingest", { limit: 10, windowSec: 60 });
+  if (limited) return limited;
 
   const incoming = await request.formData();
   const file = incoming.get("file");

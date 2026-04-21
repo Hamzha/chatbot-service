@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { expandSessionRagKeys } from "@/lib/chatbot/expandSessionRagKeys";
 import { formatConversationContext } from "@/lib/chatbot/formatConversationContext";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
@@ -11,6 +12,9 @@ export async function POST(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_query:create");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
+
+  const limited = await requireRateLimitByUser(userId, "chatbot:query", { limit: 30, windowSec: 60 });
+  if (limited) return limited;
 
   const body = (await request.json()) as {
     question?: string;
