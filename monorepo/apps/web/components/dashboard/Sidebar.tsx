@@ -5,11 +5,12 @@ import { usePathname } from "next/navigation";
 import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { useAppShell } from "@/components/shell/AppShellContext";
 import { DASHBOARD_SIDEBAR_NAV } from "@/lib/dashboard/dashboardSidebarNav";
 
 const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode> = {
     "nav.dashboard.overview": (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -19,7 +20,7 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
         </svg>
     ),
     "nav.dashboard.scraper": (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -29,7 +30,7 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
         </svg>
     ),
     "nav.dashboard.upload-document": (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -39,7 +40,7 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
         </svg>
     ),
     "nav.dashboard.chatbot": (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -49,7 +50,7 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
         </svg>
     ),
     "nav.dashboard.get-script": (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -59,7 +60,7 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
         </svg>
     ),
     "nav.dashboard.admin.roles": (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -69,7 +70,7 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
         </svg>
     ),
     "nav.dashboard.admin.users": (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -95,6 +96,7 @@ export function Sidebar({
     permissions: string[];
 }) {
     const pathname = usePathname();
+    const { closeSidebar } = useAppShell();
     const permSet = useMemo(() => new Set(permissions), [permissions]);
     const visibleNav = useMemo(
         () => navItems.filter((item) => permSet.has(item.permission)),
@@ -102,13 +104,26 @@ export function Sidebar({
     );
 
     return (
-        <aside className="glass-strong fixed left-4 top-4 bottom-4 w-60 flex flex-col rounded-2xl overflow-hidden">
-            <div className="p-6 border-b border-white/30">
-                <h1 className="text-lg font-semibold text-slate-900">AI Chatbot</h1>
-                <p className="text-sm text-slate-500 mt-1">Dashboard</p>
+        <div className="glass-strong flex h-full w-full flex-col overflow-hidden rounded-none shadow-xl shadow-slate-900/10 lg:h-[calc(100vh-2rem)] lg:rounded-2xl lg:shadow-none">
+            <div className="flex items-center justify-between gap-3 border-b border-white/30 p-5 sm:p-6">
+                <div className="min-w-0">
+                    <h1 className="truncate text-lg font-semibold text-slate-900">AI Chatbot</h1>
+                    <p className="mt-0.5 truncate text-sm text-slate-600">Dashboard</p>
+                </div>
+                <button
+                    type="button"
+                    onClick={closeSidebar}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-600 transition hover:bg-white/60 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-700 lg:hidden"
+                    aria-label="Close navigation menu"
+                >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5" aria-hidden="true">
+                        <path d="M6 6l12 12" />
+                        <path d="M6 18L18 6" />
+                    </svg>
+                </button>
             </div>
 
-            <nav className="flex-1 p-4 space-y-1">
+            <nav aria-label="Dashboard" className="flex-1 space-y-1 overflow-y-auto p-3 sm:p-4">
                 {visibleNav.map((item) => {
                     const isActive =
                         item.href === "/dashboard"
@@ -119,31 +134,37 @@ export function Sidebar({
                         <Link
                             key={item.href}
                             href={item.href}
-                            className={`flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${isActive
-                                ? "bg-white/70 border-brand-300/60 text-brand-800 shadow-sm"
-                                : "text-slate-600 hover:bg-white/40 hover:text-slate-900"
-                                }`}
+                            onClick={closeSidebar}
+                            className={`flex items-center gap-3 rounded-xl border border-transparent px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${
+                                isActive
+                                    ? "border-brand-300/60 bg-white/70 text-brand-800 shadow-sm"
+                                    : "text-slate-700 hover:bg-white/40 hover:text-slate-900"
+                            }`}
+                            aria-current={isActive ? "page" : undefined}
                         >
                             {item.icon}
-                            {item.label}
+                            <span className="truncate">{item.label}</span>
                         </Link>
                     );
                 })}
             </nav>
 
-            <div className="p-4 border-t border-white/30 space-y-3">
-                <div>
-                    <p className="text-sm font-medium text-slate-900 truncate">{userName}</p>
-                    <p className="text-xs text-slate-500 truncate">{userEmail}</p>
+            <div className="space-y-3 border-t border-white/30 p-4">
+                <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-slate-900">{userName}</p>
+                    <p className="truncate text-xs text-slate-600">{userEmail}</p>
                 </div>
                 <Link
                     href="/dashboard/profile"
-                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${pathname.startsWith("/dashboard/profile")
-                        ? "bg-white/70 border border-brand-300/60 text-brand-800 shadow-sm"
-                        : "text-slate-600 hover:bg-white/40 hover:text-slate-900"
-                        }`}
+                    onClick={closeSidebar}
+                    className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                        pathname.startsWith("/dashboard/profile")
+                            ? "border border-brand-300/60 bg-white/70 text-brand-800 shadow-sm"
+                            : "text-slate-700 hover:bg-white/40 hover:text-slate-900"
+                    }`}
+                    aria-current={pathname.startsWith("/dashboard/profile") ? "page" : undefined}
                 >
-                    <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                    <svg className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -155,6 +176,6 @@ export function Sidebar({
                 </Link>
                 <LogoutButton />
             </div>
-        </aside>
+        </div>
     );
 }

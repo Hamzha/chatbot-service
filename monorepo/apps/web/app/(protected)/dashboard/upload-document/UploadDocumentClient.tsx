@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+import { PageContainer } from "@/components/shell/PageContainer";
+import { PageHeader } from "@/components/shell/PageHeader";
 import {
   assertOkJson,
   formatApiErrorMessage,
@@ -211,27 +213,26 @@ export function UploadDocumentClient() {
   const isError = status === "error";
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      {/* Page header */}
-      <header className="glass-strong rounded-2xl p-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Ingestion · Step 2</p>
-        <h1 className="mt-1 text-2xl font-semibold text-slate-900">Upload Document</h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-600">
-          Build your document library here. PDFs are chunked and indexed; when you create a chat, you choose which
-          documents that chat may use.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Ingestion · Step 2"
+        title="Upload document"
+        subtitle="Build your document library here. PDFs are chunked and indexed; when you create a chat, you choose which documents that chat may use."
+      />
 
       {/* Two-column workspace */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+      <div className="grid gap-5 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         {/* Upload column */}
         <section className="space-y-5">
-          <form onSubmit={onUpload} className="glass-strong rounded-2xl p-6 space-y-5">
+          <form onSubmit={onUpload} className="glass-strong space-y-5 rounded-2xl p-5 sm:p-6">
             <div className="flex items-center gap-2">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-700 text-xs font-semibold text-white">
+              <span
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-700 text-xs font-semibold text-white"
+                aria-hidden="true"
+              >
                 1
               </span>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-700">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-800">
                 Choose a PDF
               </h2>
             </div>
@@ -249,22 +250,25 @@ export function UploadDocumentClient() {
               }}
               onDragLeave={() => setIsDragging(false)}
               onDrop={onDrop}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-all ${
+              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-8 text-center transition-all sm:px-6 sm:py-10 ${
                 isDragging
                   ? "border-brand-500 bg-brand-50/50"
                   : "border-slate-300/70 bg-white/30 hover:border-brand-400 hover:bg-white/50"
               }`}
             >
-              <div className="glass-muted mb-3 flex h-14 w-14 items-center justify-center rounded-2xl">
+              <div
+                className="glass-muted mb-3 flex h-14 w-14 items-center justify-center rounded-2xl"
+                aria-hidden="true"
+              >
                 <svg className="h-7 w-7 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M7 16a4 4 0 01.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
               </div>
-              <p className="text-sm font-semibold text-slate-900">
+              <p className="wrap-break-word text-sm font-semibold text-slate-900">
                 {file ? "Replace file" : "Drop your PDF here"}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
-                or <span className="font-medium text-brand-700">click to browse</span> · PDF only
+              <p className="mt-1 text-xs text-slate-700">
+                or <span className="font-semibold text-brand-800">click to browse</span> · PDF only
               </p>
               <input
                 ref={fileInputRef}
@@ -279,14 +283,17 @@ export function UploadDocumentClient() {
             {/* Selected file preview */}
             {file && (
               <div className="glass flex items-center gap-3 rounded-xl p-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-700/10">
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-700/10"
+                  aria-hidden="true"
+                >
                   <svg className="h-5 w-5 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-900">{file.name}</p>
-                  <p className="text-xs text-slate-500">{formatBytes(file.size)}</p>
+                  <p className="truncate text-sm font-semibold text-slate-900">{file.name}</p>
+                  <p className="text-xs text-slate-700">{formatBytes(file.size)}</p>
                 </div>
                 <button
                   type="button"
@@ -294,10 +301,10 @@ export function UploadDocumentClient() {
                     setFile(null);
                     if (fileInputRef.current) fileInputRef.current.value = "";
                   }}
-                  className="shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-white/60 hover:text-slate-700 transition-colors"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-white/60 hover:text-slate-900"
                   aria-label="Remove file"
                 >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -305,25 +312,27 @@ export function UploadDocumentClient() {
             )}
 
             <button
-              className="w-full rounded-xl bg-brand-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 hover:bg-brand-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full rounded-xl bg-brand-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-700/20 transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
               type="submit"
               disabled={!file || isUploading}
             >
-              {isUploading ? "Ingesting..." : "Ingest document"}
+              {isUploading ? "Ingesting…" : "Ingest document"}
             </button>
           </form>
 
           {/* Status panel — only when something happened */}
           {status !== "idle" && (
             <div
-              className={`glass rounded-2xl p-5 ${
+              className={`glass rounded-2xl p-4 sm:p-5 ${
                 isSuccess ? "border-emerald-300/60" : isError ? "border-rose-300/60" : ""
               }`}
+              role={isError ? "alert" : "status"}
+              aria-live="polite"
             >
               <div className="flex items-center gap-3">
                 <StatusIcon state={isUploading ? "loading" : isSuccess ? "success" : isError ? "error" : "info"} />
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Job status</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Job status</p>
                   <p
                     className={`text-sm font-semibold ${
                       isSuccess ? "text-emerald-800" : isError ? "text-rose-800" : "text-slate-900"
@@ -334,7 +343,7 @@ export function UploadDocumentClient() {
                 </div>
               </div>
               {result && (
-                <p className="mt-3 whitespace-pre-wrap rounded-xl bg-white/40 p-3 text-sm text-slate-700">
+                <p className="mt-3 wrap-break-word whitespace-pre-wrap rounded-xl bg-white/40 p-3 text-sm text-slate-800">
                   {result}
                 </p>
               )}
@@ -343,9 +352,12 @@ export function UploadDocumentClient() {
 
           {/* Backend error */}
           {listError && (
-            <div className="glass rounded-2xl border-amber-300/60 p-5 text-sm text-amber-950">
+            <div
+              className="glass rounded-2xl border-amber-300/60 p-4 text-sm text-amber-950 sm:p-5"
+              role="alert"
+            >
               <p className="font-semibold">Chatbot backend unreachable</p>
-              <p className="mt-1 whitespace-pre-wrap text-amber-900">{listError}</p>
+              <p className="mt-1 wrap-break-word whitespace-pre-wrap text-amber-900">{listError}</p>
               <p className="mt-2 text-xs text-amber-900/80">
                 From the monorepo root, start the API (port 8001 by default), then ensure{" "}
                 <code className="rounded bg-amber-100/80 px-1.5 py-0.5 font-mono">CHATBOT_API_URL</code> in the web app
@@ -356,10 +368,10 @@ export function UploadDocumentClient() {
         </section>
 
         {/* My Documents column */}
-        <section className="glass-strong rounded-2xl p-6">
-          <header className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Knowledge base</p>
+        <section className="glass-strong rounded-2xl p-5 sm:p-6">
+          <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-brand-700">Knowledge base</p>
               <h2 className="mt-0.5 text-lg font-semibold text-slate-900">My documents</h2>
             </div>
             <div className="flex gap-3">
@@ -371,17 +383,23 @@ export function UploadDocumentClient() {
           <div className="mt-5">
             {loadingSources ? (
               <div className="flex items-center justify-center py-12">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600" />
+                <div
+                  className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600"
+                  aria-hidden="true"
+                />
               </div>
             ) : sources.length === 0 ? (
-              <div className="glass flex flex-col items-center justify-center rounded-2xl py-12 text-center">
-                <div className="glass-muted mb-3 flex h-12 w-12 items-center justify-center rounded-2xl">
+              <div className="glass flex flex-col items-center justify-center rounded-2xl py-10 text-center sm:py-12">
+                <div
+                  className="glass-muted mb-3 flex h-12 w-12 items-center justify-center rounded-2xl"
+                  aria-hidden="true"
+                >
                   <svg className="h-6 w-6 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
                 <p className="text-sm font-semibold text-slate-900">No documents yet</p>
-                <p className="mt-1 max-w-xs text-xs text-slate-500">
+                <p className="mt-1 max-w-xs text-xs text-slate-700">
                   Upload your first PDF on the left to get started.
                 </p>
               </div>
@@ -390,24 +408,48 @@ export function UploadDocumentClient() {
                 {sources.map((item) => (
                   <li
                     key={item.id}
-                    className="glass flex items-center gap-3 rounded-xl px-4 py-3"
+                    className="glass flex items-center gap-3 rounded-xl px-3 py-3 sm:px-4"
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-700/10">
+                    <div
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-700/10"
+                      aria-hidden="true"
+                    >
                       <svg className="h-5 w-5 text-brand-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-900">{item.source}</p>
-                      <p className="text-xs text-slate-500">{item.chunks.toLocaleString()} chunks</p>
+                      <p className="truncate text-sm font-semibold text-slate-900">{item.source}</p>
+                      <p className="text-xs text-slate-700">{item.chunks.toLocaleString()} chunks</p>
                     </div>
                     <button
                       type="button"
                       onClick={() => onDeleteSource(item.id)}
                       disabled={deletingSource === item.id}
-                      className="shrink-0 rounded-lg border border-rose-300/70 bg-white/40 px-3 py-1.5 text-xs font-medium text-rose-700 backdrop-blur hover:bg-rose-50/60 disabled:opacity-50 transition-colors"
+                      aria-label={`Delete ${item.source}`}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-rose-300/70 bg-white/40 text-rose-700 backdrop-blur transition-colors hover:bg-rose-50/60 disabled:opacity-50 sm:h-9 sm:w-auto sm:px-3 sm:text-xs sm:font-semibold"
                     >
-                      {deletingSource === item.id ? "Deleting..." : "Delete"}
+                      {deletingSource === item.id ? (
+                        <span aria-hidden="true">…</span>
+                      ) : (
+                        <>
+                          <svg
+                            className="h-4 w-4 sm:hidden"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                            aria-hidden="true"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+                            />
+                          </svg>
+                          <span className="hidden sm:inline">Delete</span>
+                        </>
+                      )}
                     </button>
                   </li>
                 ))}
@@ -416,7 +458,7 @@ export function UploadDocumentClient() {
           </div>
         </section>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -424,8 +466,8 @@ export function UploadDocumentClient() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="glass-muted rounded-xl px-4 py-2 text-right">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+    <div className="glass-muted flex-1 rounded-xl px-4 py-2 text-right sm:flex-initial">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-700">{label}</p>
       <p className="text-lg font-semibold text-slate-900">{value}</p>
     </div>
   );
@@ -434,13 +476,19 @@ function Stat({ label, value }: { label: string; value: string }) {
 function StatusIcon({ state }: { state: "loading" | "success" | "error" | "info" }) {
   if (state === "loading") {
     return (
-      <div className="inline-block h-9 w-9 shrink-0 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600" />
+      <div
+        className="inline-block h-9 w-9 shrink-0 animate-spin rounded-full border-4 border-slate-300 border-t-brand-600"
+        aria-hidden="true"
+      />
     );
   }
   if (state === "success") {
     return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100/70">
-        <svg className="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100/70"
+        aria-hidden="true"
+      >
+        <svg className="h-5 w-5 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
         </svg>
       </div>
@@ -448,16 +496,22 @@ function StatusIcon({ state }: { state: "loading" | "success" | "error" | "info"
   }
   if (state === "error") {
     return (
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-100/70">
-        <svg className="h-5 w-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-100/70"
+        aria-hidden="true"
+      >
+        <svg className="h-5 w-5 text-rose-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
         </svg>
       </div>
     );
   }
   return (
-    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100/70">
-      <svg className="h-5 w-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100/70"
+      aria-hidden="true"
+    >
+      <svg className="h-5 w-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     </div>

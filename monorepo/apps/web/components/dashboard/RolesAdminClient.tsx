@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { PageContainer } from "@/components/shell/PageContainer";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { toast } from "@/lib/ui/toast";
 import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
@@ -277,38 +280,47 @@ export function RolesAdminClient() {
     };
 
     if (loading) {
-        return <p className="text-slate-600">Loading roles…</p>;
+        return (
+            <PageContainer size="5xl">
+                <p className="text-sm text-slate-700" role="status" aria-live="polite">
+                    Loading roles…
+                </p>
+            </PageContainer>
+        );
     }
 
     return (
-        <div className="space-y-6 max-w-5xl">
-            <div>
-                <h1 className="text-2xl font-semibold text-slate-900">Roles & permissions</h1>
-                <p className="text-sm text-slate-600 mt-1">
-                    Permissions are defined in code and synced to the database. Edit which codes each role includes; new signups get the{" "}
-                    <span className="font-medium">user</span> role by default. Grant admin with{" "}
-                    <code className="text-xs bg-slate-100 px-1 rounded">ADMIN_BOOTSTRAP_EMAIL</code> or from this screen.
-                </p>
-            </div>
+        <PageContainer size="5xl">
+            <PageHeader
+                variant="plain"
+                eyebrow="Admin"
+                title="Roles & permissions"
+                subtitle="Permissions are defined in code and synced to the database. Edit which codes each role includes; new signups get the user role by default."
+            />
 
             {error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+                <div
+                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+                    role="alert"
+                >
+                    {error}
+                </div>
             ) : null}
 
-            <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+            <div className="grid gap-5 sm:gap-6 md:grid-cols-[240px_minmax(0,1fr)]">
                 <div className="space-y-3">
                     <div className="flex flex-col gap-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Roles</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Roles</p>
                         <button
                             type="button"
                             onClick={openCreateRole}
                             disabled={saving}
-                            className="w-full rounded-xl border border-dashed border-brand-300 bg-brand-50/50 px-3 py-2 text-sm font-semibold text-brand-800 hover:bg-brand-50 disabled:opacity-50"
+                            className="h-11 w-full rounded-xl border border-dashed border-brand-300 bg-brand-50/50 px-3 text-sm font-semibold text-brand-800 hover:bg-brand-50 disabled:opacity-50"
                         >
                             + Add new role
                         </button>
                     </div>
-                    <ul className="space-y-1">
+                    <ul className="grid max-h-[42vh] grid-cols-1 gap-1 overflow-y-auto sm:max-h-none">
                         {rolesSorted.map((r) => (
                             <li key={r.id}>
                                 <button
@@ -317,17 +329,18 @@ export function RolesAdminClient() {
                                         setCreatingNew(false);
                                         setSelectedId(r.id);
                                     }}
-                                    className={`w-full text-left rounded-xl px-3 py-2 text-sm border transition-colors ${!creatingNew && selectedId === r.id
-                                        ? "bg-white border-brand-300 text-brand-900 shadow-sm"
+                                    aria-current={!creatingNew && selectedId === r.id ? "true" : undefined}
+                                    className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${!creatingNew && selectedId === r.id
+                                        ? "border-brand-300 bg-white text-brand-900 shadow-sm"
                                         : r.enabled === false
-                                          ? "border-transparent text-slate-500 hover:bg-white/40"
-                                          : "border-transparent text-slate-700 hover:bg-white/60"
+                                          ? "border-transparent text-slate-600 hover:bg-white/40"
+                                          : "border-transparent text-slate-800 hover:bg-white/60"
                                         }`}
                                 >
-                                    <span className="font-medium">{r.name}</span>
-                                    <span className="block text-xs opacity-80">{r.slug}</span>
+                                    <span className="block truncate font-semibold">{r.name}</span>
+                                    <span className="mt-0.5 block truncate font-mono text-xs opacity-80">{r.slug}</span>
                                     {r.enabled === false ? (
-                                        <span className="mt-1 inline-block rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">
+                                        <span className="mt-1 inline-block rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-700">
                                             Disabled
                                         </span>
                                     ) : null}
@@ -337,20 +350,20 @@ export function RolesAdminClient() {
                     </ul>
                 </div>
 
-                <div className="rounded-2xl border border-white/40 bg-white/50 p-6 shadow-sm space-y-4">
+                <div className="min-w-0 space-y-4 rounded-2xl border border-white/40 bg-white/50 p-5 shadow-sm sm:p-6">
                     {creatingNew ? (
                         <>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                                <div className="min-w-0">
                                     <h2 className="text-lg font-semibold text-slate-900">New role</h2>
-                                    <p className="text-xs text-slate-500">Choose a unique slug, then pick permissions.</p>
+                                    <p className="text-xs text-slate-700">Choose a unique slug, then pick permissions.</p>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                                     <button
                                         type="button"
                                         onClick={cancelCreateRole}
                                         disabled={saving}
-                                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                                        className="h-10 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
                                     >
                                         Cancel
                                     </button>
@@ -358,7 +371,7 @@ export function RolesAdminClient() {
                                         type="button"
                                         onClick={() => void createRole()}
                                         disabled={saving}
-                                        className="rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                                        className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
                                     >
                                         {saving ? "Creating…" : "Create role"}
                                     </button>
@@ -367,9 +380,9 @@ export function RolesAdminClient() {
 
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <label className="block text-sm sm:col-span-1">
-                                    <span className="text-slate-600">Display name</span>
+                                    <span className="text-slate-800">Display name</span>
                                     <input
-                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base text-slate-900 sm:text-sm"
                                         placeholder="e.g. Support agent"
                                         value={newName}
                                         onChange={(e) => setNewName(e.target.value)}
@@ -377,9 +390,9 @@ export function RolesAdminClient() {
                                     />
                                 </label>
                                 <label className="block text-sm sm:col-span-1">
-                                    <span className="text-slate-600">Slug</span>
+                                    <span className="text-slate-800">Slug</span>
                                     <input
-                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono"
+                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 font-mono text-base text-slate-900 sm:text-sm"
                                         placeholder="e.g. support-agent"
                                         value={newSlug}
                                         onChange={(e) => setNewSlug(e.target.value)}
@@ -387,9 +400,9 @@ export function RolesAdminClient() {
                                     />
                                 </label>
                                 <label className="block text-sm sm:col-span-2">
-                                    <span className="text-slate-600">Description (optional)</span>
+                                    <span className="text-slate-800">Description (optional)</span>
                                     <input
-                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base text-slate-900 sm:text-sm"
                                         placeholder="What this role is for"
                                         value={newDesc}
                                         onChange={(e) => setNewDesc(e.target.value)}
@@ -398,23 +411,26 @@ export function RolesAdminClient() {
                                 </label>
                             </div>
 
-                            <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                            <div className="max-h-[50vh] space-y-4 overflow-y-auto pr-1">
                                 {byModule.map(([module, rows]) => (
                                     <div key={module} className="rounded-xl border border-slate-100 bg-white/80 p-4">
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">{module}</p>
+                                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-700">{module}</p>
                                         <div className="grid gap-2 sm:grid-cols-2">
                                             {rows.map((p) => (
-                                                <label key={p.code} className="flex items-start gap-2 text-sm text-slate-800">
+                                                <label
+                                                    key={p.code}
+                                                    className="flex min-h-[44px] cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-900 hover:bg-slate-50"
+                                                >
                                                     <input
                                                         type="checkbox"
-                                                        className="mt-0.5"
+                                                        className="mt-1 h-4 w-4"
                                                         checked={draftCodes.has(p.code)}
                                                         onChange={() => toggleCode(p.code)}
                                                         disabled={saving}
                                                     />
-                                                    <span>
-                                                        <span className="font-mono text-xs text-slate-600">{p.code}</span>
-                                                        <span className="block text-xs text-slate-500">{p.description}</span>
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block wrap-break-word font-mono text-xs text-slate-700">{p.code}</span>
+                                                        <span className="block wrap-break-word text-xs text-slate-700">{p.description}</span>
                                                     </span>
                                                 </label>
                                             ))}
@@ -425,10 +441,10 @@ export function RolesAdminClient() {
                         </>
                     ) : selected ? (
                         <>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-slate-900">{selected.name}</h2>
-                                    <p className="text-xs text-slate-500">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                                <div className="min-w-0">
+                                    <h2 className="wrap-break-word text-lg font-semibold text-slate-900">{selected.name}</h2>
+                                    <p className="text-xs text-slate-700">
                                         {selected.isSystem
                                             ? "System role — cannot be deleted or disabled"
                                             : selected.enabled === false
@@ -436,13 +452,13 @@ export function RolesAdminClient() {
                                               : "Custom role"}
                                     </p>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                                     {!selected.isSystem ? (
                                         <button
                                             type="button"
                                             onClick={() => void deleteRole()}
                                             disabled={saving}
-                                            className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-800 hover:bg-red-100 disabled:opacity-50"
+                                            className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-900 hover:bg-red-100 disabled:opacity-50"
                                         >
                                             Delete
                                         </button>
@@ -451,50 +467,50 @@ export function RolesAdminClient() {
                                         type="button"
                                         onClick={() => void saveRole()}
                                         disabled={saving}
-                                        className="rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                                        className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
                                     >
                                         {saving ? "Saving…" : "Save changes"}
                                     </button>
                                 </div>
                             </div>
 
-                            <div className="rounded-xl border border-slate-100 bg-white/70 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-                                <div>
-                                    <p className="text-sm font-medium text-slate-900">Role enabled</p>
-                                    <p className="text-xs text-slate-500">
+                            <div className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white/70 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-slate-900">Role enabled</p>
+                                    <p className="text-xs text-slate-700">
                                         When off, assignments stay on users but permissions from this role are ignored.
                                     </p>
                                 </div>
                                 {selected.isSystem ? (
-                                    <span className="text-sm font-medium text-slate-600">Always on</span>
+                                    <span className="text-sm font-semibold text-slate-700">Always on</span>
                                 ) : (
-                                    <label className="inline-flex cursor-pointer items-center gap-2 select-none">
+                                    <label className="inline-flex cursor-pointer select-none items-center gap-2">
                                         <input
                                             type="checkbox"
                                             checked={selected.enabled}
                                             disabled={saving}
                                             onChange={(e) => void setRoleEnabled(e.target.checked)}
-                                            className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                                            className="h-4 w-4 rounded border-slate-300 text-brand-700 focus:ring-brand-500"
                                         />
-                                        <span className="text-sm font-medium text-slate-800">{selected.enabled ? "On" : "Off"}</span>
+                                        <span className="text-sm font-semibold text-slate-800">{selected.enabled ? "On" : "Off"}</span>
                                     </label>
                                 )}
                             </div>
 
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <label className="block text-sm">
-                                    <span className="text-slate-600">Display name</span>
+                                    <span className="text-slate-800">Display name</span>
                                     <input
-                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base text-slate-900 sm:text-sm"
                                         value={nameDraft}
                                         onChange={(e) => setNameDraft(e.target.value)}
                                         disabled={saving}
                                     />
                                 </label>
                                 <label className="block text-sm">
-                                    <span className="text-slate-600">Description</span>
+                                    <span className="text-slate-800">Description</span>
                                     <input
-                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                                        className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2.5 text-base text-slate-900 sm:text-sm"
                                         value={descDraft}
                                         onChange={(e) => setDescDraft(e.target.value)}
                                         disabled={saving}
@@ -502,23 +518,26 @@ export function RolesAdminClient() {
                                 </label>
                             </div>
 
-                            <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
+                            <div className="max-h-[50vh] space-y-4 overflow-y-auto pr-1">
                                 {byModule.map(([module, rows]) => (
                                     <div key={module} className="rounded-xl border border-slate-100 bg-white/80 p-4">
-                                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">{module}</p>
+                                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-700">{module}</p>
                                         <div className="grid gap-2 sm:grid-cols-2">
                                             {rows.map((p) => (
-                                                <label key={p.code} className="flex items-start gap-2 text-sm text-slate-800">
+                                                <label
+                                                    key={p.code}
+                                                    className="flex min-h-[44px] cursor-pointer items-start gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-900 hover:bg-slate-50"
+                                                >
                                                     <input
                                                         type="checkbox"
-                                                        className="mt-0.5"
+                                                        className="mt-1 h-4 w-4"
                                                         checked={draftCodes.has(p.code)}
                                                         onChange={() => toggleCode(p.code)}
                                                         disabled={saving}
                                                     />
-                                                    <span>
-                                                        <span className="font-mono text-xs text-slate-600">{p.code}</span>
-                                                        <span className="block text-xs text-slate-500">{p.description}</span>
+                                                    <span className="min-w-0 flex-1">
+                                                        <span className="block wrap-break-word font-mono text-xs text-slate-700">{p.code}</span>
+                                                        <span className="block wrap-break-word text-xs text-slate-700">{p.description}</span>
                                                     </span>
                                                 </label>
                                             ))}
@@ -528,13 +547,13 @@ export function RolesAdminClient() {
                             </div>
                         </>
                     ) : (
-                        <div className="rounded-xl border border-slate-100 bg-white/60 p-8 text-center space-y-3">
-                            <p className="text-slate-600">No roles in the database yet.</p>
+                        <div className="space-y-3 rounded-xl border border-slate-100 bg-white/60 p-6 text-center sm:p-8">
+                            <p className="text-slate-700">No roles in the database yet.</p>
                             <button
                                 type="button"
                                 onClick={openCreateRole}
                                 disabled={saving}
-                                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                                className="h-11 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50"
                             >
                                 Add new role
                             </button>
@@ -542,6 +561,6 @@ export function RolesAdminClient() {
                     )}
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }

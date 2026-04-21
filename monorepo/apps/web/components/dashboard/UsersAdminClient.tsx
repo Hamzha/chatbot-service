@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { PageContainer } from "@/components/shell/PageContainer";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { toast } from "@/lib/ui/toast";
 import { extractErrorMessage } from "@/lib/ui/notifyMutation";
 
@@ -114,50 +117,67 @@ export function UsersAdminClient() {
     };
 
     if (loading) {
-        return <p className="text-slate-600">Loading users…</p>;
+        return (
+            <PageContainer size="5xl">
+                <p className="text-sm text-slate-700" role="status" aria-live="polite">
+                    Loading users…
+                </p>
+            </PageContainer>
+        );
     }
 
     return (
-        <div className="space-y-6 max-w-5xl">
-            <div>
-                <h1 className="text-2xl font-semibold text-slate-900">Users & roles</h1>
-                <p className="text-sm text-slate-600 mt-1">
-                    Assign one or more roles to each account. Effective permissions are the union of all assigned roles that are still{" "}
-                    <span className="font-medium">enabled</span> (manage that on Roles & permissions).
-                </p>
-            </div>
+        <PageContainer size="5xl">
+            <PageHeader
+                variant="plain"
+                eyebrow="Admin"
+                title="Users & roles"
+                subtitle="Assign one or more roles to each account. Effective permissions are the union of all assigned roles that are still enabled."
+            />
 
             {error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+                <div
+                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+                    role="alert"
+                >
+                    {error}
+                </div>
             ) : null}
             {success ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{success}</div>
+                <div
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+                    role="status"
+                    aria-live="polite"
+                >
+                    {success}
+                </div>
             ) : null}
 
-            <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+            <div className="grid gap-5 sm:gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Users</p>
-                    <ul className="space-y-1 max-h-[60vh] overflow-y-auto pr-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Users</p>
+                    <ul className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 sm:max-h-[60vh]">
                         {users.map((u) => (
                             <li key={u.id}>
                                 <button
                                     type="button"
                                     onClick={() => setSelectedId(u.id)}
-                                    className={`w-full text-left rounded-xl px-3 py-2 text-sm border transition-colors ${selectedId === u.id
-                                        ? "bg-white border-brand-300 text-brand-900 shadow-sm"
-                                        : "border-transparent text-slate-700 hover:bg-white/60"
+                                    aria-current={selectedId === u.id ? "true" : undefined}
+                                    className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${selectedId === u.id
+                                        ? "border-brand-300 bg-white text-brand-900 shadow-sm"
+                                        : "border-transparent text-slate-800 hover:bg-white/60"
                                         }`}
                                 >
-                                    <span className="font-medium flex items-center gap-2">
-                                        {u.name}
+                                    <span className="flex min-w-0 items-center gap-2 font-semibold">
+                                        <span className="truncate">{u.name}</span>
                                         {currentUserId === u.id ? (
-                                            <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-800">
+                                            <span className="shrink-0 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-800">
                                                 You
                                             </span>
                                         ) : null}
                                     </span>
-                                    <span className="block text-xs text-slate-500 truncate">{u.email}</span>
-                                    <span className="block text-[10px] text-slate-400 mt-0.5">
+                                    <span className="block truncate text-xs text-slate-700">{u.email}</span>
+                                    <span className="mt-0.5 block text-[10px] text-slate-600">
                                         {u.roles.length} role{u.roles.length === 1 ? "" : "s"}
                                         {!u.emailVerified ? " · unverified email" : ""}
                                     </span>
@@ -167,52 +187,52 @@ export function UsersAdminClient() {
                     </ul>
                 </div>
 
-                <div className="rounded-2xl border border-white/40 bg-white/50 p-6 shadow-sm space-y-4">
+                <div className="min-w-0 space-y-4 rounded-2xl border border-white/40 bg-white/50 p-5 shadow-sm sm:p-6">
                     {!selected ? (
-                        <p className="text-slate-600">No users found.</p>
+                        <p className="text-sm text-slate-700">No users found.</p>
                     ) : (
                         <>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-slate-900">{selected.name}</h2>
-                                    <p className="text-sm text-slate-600">{selected.email}</p>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                                <div className="min-w-0">
+                                    <h2 className="wrap-break-word text-lg font-semibold text-slate-900">{selected.name}</h2>
+                                    <p className="wrap-break-word text-sm text-slate-700">{selected.email}</p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => void saveRoles()}
                                     disabled={saving}
-                                    className="rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                                    className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50 sm:w-auto"
                                 >
                                     {saving ? "Saving…" : "Save roles"}
                                 </button>
                             </div>
 
-                            <p className="text-sm text-slate-600">
+                            <p className="text-sm text-slate-700">
                                 Check every role this user should have. Uncheck all to remove every role (they will have no permissions until you assign again).
                             </p>
 
-                            <div className="space-y-2 rounded-xl border border-slate-100 bg-white/80 p-4 max-h-[50vh] overflow-y-auto">
+                            <div className="max-h-[50vh] space-y-2 overflow-y-auto rounded-xl border border-slate-100 bg-white/80 p-3 sm:p-4">
                                 {roleOptions.map((r) => (
                                     <label
                                         key={r.id}
-                                        className={`flex items-start gap-3 rounded-lg px-2 py-2 text-sm ${r.enabled === false ? "opacity-60" : ""}`}
+                                        className={`flex min-h-[44px] cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm hover:bg-slate-50 ${r.enabled === false ? "opacity-60" : ""}`}
                                     >
                                         <input
                                             type="checkbox"
-                                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+                                            className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-700"
                                             checked={draftRoleIds.has(r.id)}
                                             onChange={() => toggleRole(r.id)}
                                             disabled={saving}
                                         />
-                                        <span>
-                                            <span className="font-medium text-slate-900">{r.name}</span>
-                                            <span className="text-slate-500"> · </span>
-                                            <span className="font-mono text-xs text-slate-600">{r.slug}</span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="wrap-break-word font-semibold text-slate-900">{r.name}</span>
+                                            <span className="text-slate-600"> · </span>
+                                            <span className="wrap-break-word font-mono text-xs text-slate-700">{r.slug}</span>
                                             {r.isSystem ? (
-                                                <span className="ml-2 text-[10px] font-semibold uppercase text-slate-400">system</span>
+                                                <span className="ml-2 text-[10px] font-semibold uppercase text-slate-600">system</span>
                                             ) : null}
                                             {r.enabled === false ? (
-                                                <span className="ml-2 text-[10px] font-semibold uppercase text-amber-700">disabled role</span>
+                                                <span className="ml-2 text-[10px] font-semibold uppercase text-amber-800">disabled role</span>
                                             ) : null}
                                         </span>
                                     </label>
@@ -222,6 +242,6 @@ export function UsersAdminClient() {
                     )}
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }
