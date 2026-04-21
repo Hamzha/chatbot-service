@@ -429,6 +429,88 @@ Client's website
 - Content Security Policy (CSP) `frame-ancestors` to control which domains can embed the iframe
 - `sandbox` attribute on iframe for extra security
 
+## Page-Level RBAC Gating
+
+Dashboard pages are now gated server-side so direct URL access by a user without the required permission redirects to `/dashboard` instead of rendering. Previously only the sidebar hid the links and the underlying API returned 403.
+
+### Helper — `lib/auth/requirePagePermission.ts`
+
+```ts
+await requirePagePermission("scraper:read");
+// redirects to /login if unauth'd
+// redirects to /dashboard if missing permission
+// returns { user, ctx } otherwise
+```
+
+### Pattern for client-only pages
+
+Each client `page.tsx` was split into two files:
+
+- `SomethingClient.tsx` — kept the `"use client"` directive and all the original logic; exports a named component `SomethingClient`.
+- `page.tsx` — thin async server component that calls `requirePagePermission(...)` then renders `<SomethingClient />`.
+
+### Gated routes
+
+| Route                                 | Permission                   |
+| ------------------------------------- | ---------------------------- |
+| `/dashboard`                          | `dashboard:read`             |
+| `/dashboard/scraper`                  | `scraper:read`               |
+| `/dashboard/upload-document`          | `chatbot_documents:create`   |
+| `/dashboard/chatbot`                  | `chatbot_sessions:read`      |
+| `/dashboard/chatbot/new`              | `chatbot_sessions:create`    |
+| `/dashboard/chatbot/[sessionId]`      | `chatbot_sessions:read`      |
+| `/dashboard/get-script`               | `chatbot_sessions:read`      |
+| `/dashboard/customize`                | `chatbot_sessions:update`    |
+| `/dashboard/admin/roles`              | `roles:read`                 |
+| `/dashboard/admin/users`              | `users:read`                 |
+
+`/dashboard/profile` is intentionally ungated — any logged-in user should see their own profile.
+
+The existing sidebar visibility logic (`components/dashboard/Sidebar.tsx` + `lib/dashboard/dashboardSidebarNav.ts`) is unchanged and still hides nav links based on the same permissions.
+
+## API Rate Limiting
+
+Server-side, Mongo-backed rate limiting applied at the top of each protected route handler. Fixed-window counters, one collection document per (bucket, key, time-window) with a TTL index for auto-cleanup. No Redis or external dependency.
+
+### Files
+
+- `lib/rateLimit/rateLimitRepo.ts` — Mongoose `RateLimit` model (`_id` = `${bucket}:${key}:${windowIndex}`, TTL index on `expiresAt`) + `consumeRateLimit(bucket, key, limit, windowSec)`.
+- `lib/rateLimit/requireRateLimit.ts` — two helpers:
+  - `requireRateLimitByIp(request, bucket, { limit, windowSec })` — reads `x-forwarded-for` / `x-real-ip`; falls back to `"unknown"`.
+  - `requireRateLimitByUser(userId, bucket, { limit, windowSec })` — for authenticated routes.
+  - Both return `NextResponse` **429** with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` headers, or `null` to continue.
+
+### Environment flags
+
+- **Default:** disabled in dev, enabled in production (`NODE_ENV === "production"`).
+- `RATE_LIMIT_ENABLED=true` — force-enable in dev.
+- `RATE_LIMIT_DISABLED=true` — force-disable even in production.
+
+### Limits applied
+
+**Unauthenticated (per-IP):**
+
+| Route                                | Limit        |
+| ------------------------------------ | ------------ |
+| `POST /api/auth/login`               | 5 / 15 min   |
+| `POST /api/auth/signup`              | 5 / 1 hr     |
+| `POST /api/auth/forgot-password`     | 3 / 15 min   |
+| `POST /api/auth/reset-password`      | 5 / 15 min   |
+| `GET  /api/auth/verify-email`        | 10 / 15 min  |
+| `POST /api/auth/demo-login`          | 5 / 15 min   |
+| `POST /api/chatbot/widget/chat`      | 30 / 1 min   |
+
+**Authenticated expensive ops (per-user):**
+
+| Route                                | Limit      |
+| ------------------------------------ | ---------- |
+| `POST /api/scraper/scrape`           | 20 / 1 min |
+| `POST /api/scraper/crawl/jobs`       | 5 / 1 min  |
+| `POST /api/chatbot/query`            | 30 / 1 min |
+| `POST /api/chatbot/ingest`           | 10 / 1 min |
+
+Cheap/read-only routes (`/api/auth/me`, `/api/auth/logout`, `/api/chatbot/{sessions,messages,documents,jobs,sources,bot-id}`, `/api/admin/*`, `/api/chatbot/widget/config`) are left ungated for now.
+
 ## Known Issues
 
 ## How to Run
