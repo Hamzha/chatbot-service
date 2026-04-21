@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { getCurrentUserFromToken } from "@/lib/auth/authService";
-import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { requirePagePermission } from "@/lib/auth/requirePagePermission";
 
 type PipelineStep = {
   step: number;
@@ -51,9 +50,8 @@ const PIPELINE: PipelineStep[] = [
 ];
 
 export default async function DashboardPage() {
-  const token = await getSessionCookie();
-  const user = token ? await getCurrentUserFromToken(token) : null;
-  const firstName = user?.name?.split(" ")[0] ?? "there";
+  const { user } = await requirePagePermission("dashboard:read");
+  const firstName = user.name?.split(" ")[0] ?? "there";
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
