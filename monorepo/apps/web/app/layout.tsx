@@ -20,6 +20,13 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   colorScheme: "light",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
+  ],
 };
 
 export default function RootLayout({
@@ -32,7 +39,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col text-slate-900">
+      <body className="min-h-full flex flex-col overflow-x-hidden text-slate-900">
         {children}
         <Toaster
           position="top-right"
