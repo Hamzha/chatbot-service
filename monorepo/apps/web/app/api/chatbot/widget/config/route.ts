@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { notFoundError, parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { getChatSession, updateChatSession } from "@/lib/db/chatSessionRepo";
 
@@ -14,7 +15,7 @@ const putWidgetConfigSchema = z.object({
     .regex(HEX_COLOR_REGEX, "primaryColor must be a valid hex color (e.g. #0f766e)"),
 });
 
-export async function GET(request: Request) {
+async function getWidgetConfig(request: Request) {
   const gate = await requireUserIdWithPermission("chatbot_sessions:read");
   if (gate instanceof NextResponse) return gate;
   const { userId } = gate;
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   });
 }
 
-export async function PUT(request: Request) {
+async function putWidgetConfig(request: Request) {
   const gate = await requireUserIdWithPermission("chatbot_sessions:update");
   if (gate instanceof NextResponse) return gate;
   const { userId } = gate;
@@ -62,3 +63,6 @@ export async function PUT(request: Request) {
     primaryColor: session.primaryColor,
   });
 }
+
+export const GET = withApiLogging(getWidgetConfig);
+export const PUT = withApiLogging(putWidgetConfig);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { internalServerError, notFoundError, upstreamError, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { deleteChatbotDocumentById, getChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
@@ -22,7 +23,7 @@ async function deleteChromaSource(
 }
 
 /** Delete vectors in the chatbot service, then remove the Mongo document record. */
-export async function DELETE(
+async function deleteDocumentById(
     _request: Request,
     { params }: { params: Promise<{ documentId: string }> },
 ) {
@@ -82,3 +83,5 @@ export async function DELETE(
     }
     return NextResponse.json({ ok: true, deletedPages: keysToDelete.length });
 }
+
+export const DELETE = withApiLogging(deleteDocumentById);

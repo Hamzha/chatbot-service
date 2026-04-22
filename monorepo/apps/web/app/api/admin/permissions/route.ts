@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/lib/auth/requireApiPermission";
 import { internalServerError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { listPermissions } from "@/lib/db/permissionRepo";
 
-export async function GET() {
+async function getPermissions() {
     const gate = await requireApiPermission("roles:read");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:permissions:read", {
@@ -20,3 +21,5 @@ export async function GET() {
         return internalServerError(error, "Failed to list permissions");
     }
 }
+
+export const GET = withApiLogging(getPermissions);

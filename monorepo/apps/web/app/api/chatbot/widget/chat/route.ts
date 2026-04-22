@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { parseJsonBody } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { validateWidgetRequest } from "@/lib/chatbot/validateWidgetRequest";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 
@@ -9,7 +10,7 @@ const widgetChatSchema = z.object({
   message: z.unknown(),
 });
 
-export async function POST(request: Request) {
+async function postWidgetChat(request: Request) {
   const limited = await requireRateLimitByIp(request, "widget:chat", { limit: 30, windowSec: 60 });
   if (limited) return limited;
   const parsed = await parseJsonBody(request, widgetChatSchema);
@@ -25,3 +26,5 @@ export async function POST(request: Request) {
     reply: "Thanks for your message! This is a demo response. The chatbot will be fully connected soon.",
   });
 }
+
+export const POST = withApiLogging(postWidgetChat);

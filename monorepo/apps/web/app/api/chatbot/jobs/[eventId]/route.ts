@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/lib/auth/requireApiPermission";
 import { upstreamError, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
-export async function GET(
+async function getJobStatus(
   _request: Request,
   { params }: { params: Promise<{ eventId: string }> }
 ) {
@@ -29,4 +30,6 @@ export async function GET(
     return upstreamError(error, "Cannot reach chatbot service");
   }
 }
+
+export const GET = withApiLogging(getJobStatus);
 

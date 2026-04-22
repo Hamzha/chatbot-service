@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { internalServerError, notFoundError, parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import {
@@ -34,7 +35,7 @@ const finalizeDocumentSchema = z.object({
     chunks: z.number().finite().int().min(0, "Missing or invalid chunks"),
 });
 
-export async function GET() {
+async function getDocuments() {
     const auth = await requireUserIdWithPermission("chatbot_documents:read");
     if (auth instanceof NextResponse) return auth;
     const { userId } = auth;
@@ -67,7 +68,7 @@ export async function GET() {
 }
 
 /** Finalize chunk counts after ingestion: `{ documentId, chunks }`. */
-export async function POST(request: Request) {
+async function postDocuments(request: Request) {
     const auth = await requireUserIdWithPermission("chatbot_documents:update");
     if (auth instanceof NextResponse) return auth;
     const { userId } = auth;
@@ -95,3 +96,6 @@ export async function POST(request: Request) {
         return internalServerError(error, "Failed to save document record");
     }
 }
+
+export const GET = withApiLogging(getDocuments);
+export const POST = withApiLogging(postDocuments);

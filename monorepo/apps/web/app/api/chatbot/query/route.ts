@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { jsonError, parseJsonBody, upstreamError, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { expandSessionRagKeys } from "@/lib/chatbot/expandSessionRagKeys";
 import { formatConversationContext } from "@/lib/chatbot/formatConversationContext";
@@ -16,7 +17,7 @@ const querySchema = z.object({
   sessionId: z.string().trim().min(1, "Missing sessionId"),
 });
 
-export async function POST(request: Request) {
+async function postQuery(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_query:create");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -69,3 +70,5 @@ export async function POST(request: Request) {
     return upstreamError(error, "Cannot reach chatbot service");
   }
 }
+
+export const POST = withApiLogging(postQuery);

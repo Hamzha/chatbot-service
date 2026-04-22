@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { getCurrentUserFromToken, mapAuthError } from "@/lib/auth/authService";
 import { parseJsonBody } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getAuthContextForUserId } from "@/lib/auth/authorization";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
 import { profileUpdateSchema } from "@repo/auth/validators";
 import { toSafeUser, updateUserName } from "@/lib/db/userRepo";
 
-export async function GET() {
+async function getMe() {
     const token = await getSessionCookie();
     if (!token) {
         return NextResponse.json({ user: null }, { status: 401 });
@@ -28,7 +29,7 @@ export async function GET() {
     return NextResponse.json({ user, permissions, roles }, { status: 200 });
 }
 
-export async function PATCH(request: Request) {
+async function patchMe(request: Request) {
     const token = await getSessionCookie();
     if (!token) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -62,3 +63,6 @@ export async function PATCH(request: Request) {
         return NextResponse.json({ error: mapped.message }, { status: mapped.status });
     }
 }
+
+export const GET = withApiLogging(getMe);
+export const PATCH = withApiLogging(patchMe);

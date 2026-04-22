@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { parseJsonBody, upstreamError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { registerScrapedDocument } from "@/lib/scraper/registerScrapedDocument";
 
@@ -13,7 +14,7 @@ const scrapeRequestSchema = z.object({
     max_depth: z.unknown().optional(),
 });
 
-export async function POST(req: NextRequest) {
+async function postScrape(req: NextRequest) {
     try {
         const gate = await requireUserIdWithPermission("scraper:create");
         if (gate instanceof NextResponse) return gate;
@@ -58,3 +59,5 @@ export async function POST(req: NextRequest) {
         return upstreamError(error, "Cannot reach scraper service");
     }
 }
+
+export const POST = withApiLogging(postScrape);

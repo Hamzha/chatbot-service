@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import { requireApiPermission } from "@/lib/auth/requireApiPermission";
 import { notFoundError, parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { listRoles } from "@/lib/db/roleRepo";
 import { getAdminUserRow, updateUserRoleIds } from "@/lib/db/userRepo";
@@ -23,7 +24,7 @@ const patchUserRoleIdsSchema = z.object({
         }),
 });
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function getUserById(_request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("users:read");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:users:item:read", {
@@ -40,7 +41,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ user });
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function patchUserById(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("users:update");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:users:item:update", {
@@ -74,3 +75,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const user = await getAdminUserRow(id);
     return NextResponse.json({ user });
 }
+
+export const GET = withApiLogging(getUserById);
+export const PATCH = withApiLogging(patchUserById);

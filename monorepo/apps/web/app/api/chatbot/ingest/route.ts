@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { createPendingChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
 
-export async function POST(request: Request) {
+async function postIngest(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_documents:create");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -66,3 +67,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export const POST = withApiLogging(postIngest);

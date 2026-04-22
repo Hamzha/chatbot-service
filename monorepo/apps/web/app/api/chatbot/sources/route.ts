@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { upstreamError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
-export async function GET() {
+async function getSources() {
   const auth = await requireUserIdWithPermission("chatbot_sources:read");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -26,4 +27,6 @@ export async function GET() {
     return upstreamError(error, "Cannot reach chatbot service");
   }
 }
+
+export const GET = withApiLogging(getSources);
 

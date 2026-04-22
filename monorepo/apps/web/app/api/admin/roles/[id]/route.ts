@@ -8,6 +8,7 @@ import {
     parseJsonBody,
     validationError,
 } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { deleteRoleById, findRoleById, updateRole } from "@/lib/db/roleRepo";
 
@@ -22,7 +23,7 @@ const updateRoleSchema = z
 
 const deleteRoleSchema = z.object({ detachUsers: z.boolean().optional().default(false) });
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function getRoleById(_request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("roles:read");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:item:read", {
@@ -39,7 +40,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ role });
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function patchRoleById(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("roles:update");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:item:update", {
@@ -64,7 +65,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function deleteRole(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("roles:delete");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:item:delete", {
@@ -90,3 +91,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     }
     return NextResponse.json({ ok: true });
 }
+
+export const GET = withApiLogging(getRoleById);
+export const PATCH = withApiLogging(patchRoleById);
+export const DELETE = withApiLogging(deleteRole);

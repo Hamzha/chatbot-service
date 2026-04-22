@@ -61,6 +61,11 @@ vi.mock("@/lib/db/crawlJobRepo", () => ({
     listCrawlJobsForUser: vi.fn(),
 }));
 
+vi.mock("@/lib/db/apiRequestLogRepo", () => ({
+    createApiRequestLog: vi.fn(),
+    listApiRequestLogs: vi.fn(),
+}));
+
 vi.mock("@/lib/scraper/crawlJobWorker", () => ({
     runCrawlJob: vi.fn(),
 }));
@@ -106,6 +111,7 @@ import {
     getCrawlJob,
     listCrawlJobsForUser,
 } from "@/lib/db/crawlJobRepo";
+import { listApiRequestLogs } from "@/lib/db/apiRequestLogRepo";
 import { runCrawlJob } from "@/lib/scraper/crawlJobWorker";
 
 import { GET as adminPermissionsGet } from "@/app/api/admin/permissions/route";
@@ -139,6 +145,7 @@ import {
     POST as scraperCrawlJobsPost,
 } from "@/app/api/scraper/crawl/jobs/route";
 import { GET as scraperCrawlJobByIdGet } from "@/app/api/scraper/crawl/jobs/[jobId]/route";
+import { GET as apiLogsGet } from "@/app/api/logs/route";
 
 function authCtx(permissions: Iterable<string>, userId = "user-1"): AuthContext {
     return {
@@ -1434,5 +1441,74 @@ describe("GET /api/scraper/crawl/jobs/[jobId]", () => {
         const body = (await res.json()) as { job: { state: string; doneCount: number } };
         expect(body.job.state).toBe("running");
         expect(body.job.doneCount).toBe(3);
+    });
+});
+
+describe("GET /api/logs", () => {
+    it("403 without users:read", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["roles:read"]));
+        const res = await apiLogsGet(new Request("http://localhost/api/logs"));
+        expect(res.status).toBe(403);
+    });
+
+    it("429 when logs rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await apiLogsGet(new Request("http://localhost/api/logs"));
+        expect(res.status).toBe(429);
+    });
+
+    it("400 on invalid query params", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"]));
+        const res = await apiLogsGet(new Request("http://localhost/api/logs?status=999"));
+        expect(res.status).toBe(400);
+    });
+
+    it("200 with filtered logs payload", async () => {
+        goodSession("admin-1");
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"], "admin-1"));
+        vi.mocked(listApiRequestLogs).mockResolvedValue({
+            total: 1,
+            logs: [
+                {
+                    id: "l1",
+                    requestId: "req-1",
+                    method: "GET",
+                    route: "/api/admin/users",
+                    status: 200,
+                    success: true,
+                    durationMs: 14,
+                    occurredAt: new Date().toISOString(),
+                    userId: "admin-1",
+                    userEmail: "admin@example.com",
+                    ip: "127.0.0.1",
+                    userAgent: "vitest",
+                    errorMessage: null,
+                },
+            ],
+        });
+        const res = await apiLogsGet(
+            new Request(
+                "http://localhost/api/logs?method=get&status=200&success=true&limit=50&offset=0",
+            ),
+        );
+        expect(res.status).toBe(200);
+        expect(listApiRequestLogs).toHaveBeenCalledWith(
+            expect.objectContaining({
+                method: "get",
+                status: 200,
+                success: true,
+                limit: 50,
+                offset: 0,
+            }),
+        );
+        const body = (await res.json()) as { total: number; logs: unknown[] };
+        expect(body.total).toBe(1);
+        expect(body.logs).toHaveLength(1);
     });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { internalServerError, jsonError, parseJsonBody } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import {
   appendChatbotExchange,
@@ -21,7 +22,7 @@ const createMessageSchema = z.object({
   sessionId: z.string().trim().min(1, "sessionId is required"),
 });
 
-export async function GET(request: Request) {
+async function getMessages(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_messages:read");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
 }
 
 /** Persist one user question + assistant answer after a completed chatbot job. */
-export async function POST(request: Request) {
+async function postMessages(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_messages:create");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -64,7 +65,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function deleteMessages(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_messages:delete");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -84,3 +85,7 @@ export async function DELETE(request: Request) {
     return internalServerError(error, "Failed to clear messages");
   }
 }
+
+export const GET = withApiLogging(getMessages);
+export const POST = withApiLogging(postMessages);
+export const DELETE = withApiLogging(deleteMessages);

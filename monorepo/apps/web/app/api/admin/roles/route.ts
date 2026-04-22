@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireApiPermission } from "@/lib/auth/requireApiPermission";
 import { conflictError, errorMessage, parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { createRole, listRoles } from "@/lib/db/roleRepo";
 
@@ -12,7 +13,7 @@ const createRoleSchema = z.object({
     permissionCodes: z.array(z.string()).default([]),
 });
 
-export async function GET() {
+async function getRoles() {
     const gate = await requireApiPermission("roles:read");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:read", {
@@ -25,7 +26,7 @@ export async function GET() {
     return NextResponse.json({ roles });
 }
 
-export async function POST(request: Request) {
+async function postRoles(request: Request) {
     const gate = await requireApiPermission("roles:create");
     if (gate instanceof NextResponse) return gate;
     const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:create", {
@@ -53,3 +54,6 @@ export async function POST(request: Request) {
         return validationError(msg);
     }
 }
+
+export const GET = withApiLogging(getRoles);
+export const POST = withApiLogging(postRoles);

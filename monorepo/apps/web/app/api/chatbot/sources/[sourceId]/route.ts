@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { upstreamError, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
-export async function DELETE(
+async function deleteSource(
   _request: Request,
   { params }: { params: Promise<{ sourceId: string }> }
 ) {
@@ -33,4 +34,6 @@ export async function DELETE(
     return upstreamError(error, "Cannot reach chatbot service");
   }
 }
+
+export const DELETE = withApiLogging(deleteSource);
 

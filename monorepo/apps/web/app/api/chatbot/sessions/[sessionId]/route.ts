@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { notFoundError, parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { deleteMessagesForSession } from "@/lib/db/chatbotMessageRepo";
 import {
@@ -19,7 +20,7 @@ const updateSessionSchema = z
   })
   .refine((v) => Object.keys(v).length > 0, { message: "No updates provided" });
 
-export async function GET(
+async function getSessionById(
   _request: Request,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
@@ -40,7 +41,7 @@ export async function GET(
   return NextResponse.json({ session, selectedDocuments });
 }
 
-export async function PATCH(
+async function patchSessionById(
   request: Request,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
@@ -69,7 +70,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function deleteSessionById(
   _request: Request,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
@@ -89,3 +90,7 @@ export async function DELETE(
   }
   return NextResponse.json({ ok: true });
 }
+
+export const GET = withApiLogging(getSessionById);
+export const PATCH = withApiLogging(patchSessionById);
+export const DELETE = withApiLogging(deleteSessionById);

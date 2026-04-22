@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { notFoundError, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { getCrawlJob } from "@/lib/db/crawlJobRepo";
 
-export async function GET(
+async function getCrawlJobById(
     _req: Request,
     ctx: { params: Promise<{ jobId: string }> },
 ) {
@@ -28,3 +29,5 @@ export async function GET(
     }
     return NextResponse.json({ job });
 }
+
+export const GET = withApiLogging(getCrawlJobById);

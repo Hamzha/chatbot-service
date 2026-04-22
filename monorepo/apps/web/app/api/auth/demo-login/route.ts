@@ -4,6 +4,7 @@ import { ensureRbacSeeded } from "@/lib/db/rbacSeed";
 import { ensureDemoUsers, getResolvedDemoCredentials } from "@/lib/db/demoUsers";
 import { login, mapAuthError } from "@/lib/auth/authService";
 import { parseJsonBody } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 import { setSessionCookie } from "@repo/auth/lib/cookies";
 
@@ -12,7 +13,7 @@ const demoLoginSchema = z.object({
     preset: z.enum(["admin", "user"], { message: "preset must be \"admin\" or \"user\"" }),
 });
 
-export async function POST(request: Request) {
+async function postDemoLogin(request: Request) {
     const limited = await requireRateLimitByIp(request, "auth:demo-login", { limit: 5, windowSec: 900 });
     if (limited) return limited;
 
@@ -43,3 +44,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: mapped.message }, { status: mapped.status });
     }
 }
+
+export const POST = withApiLogging(postDemoLogin);

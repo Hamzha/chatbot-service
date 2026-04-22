@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { notFoundError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { listChatSessions } from "@/lib/db/chatSessionRepo";
 
-export async function GET() {
+async function getBotId() {
   const gate = await requireUserIdWithPermission("chatbot_sessions:read");
   if (gate instanceof NextResponse) return gate;
   const { userId } = gate;
@@ -22,3 +23,5 @@ export async function GET() {
 
   return NextResponse.json({ botId });
 }
+
+export const GET = withApiLogging(getBotId);

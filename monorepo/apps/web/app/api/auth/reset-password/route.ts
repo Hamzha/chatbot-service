@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { mapAuthError, resetPassword } from "@/lib/auth/authService";
 import { parseJsonBody } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 
 const resetPasswordRequestSchema = z.object({
@@ -9,7 +10,7 @@ const resetPasswordRequestSchema = z.object({
     password: z.string(),
 });
 
-export async function POST(request: Request) {
+async function postResetPassword(request: Request) {
     const limited = await requireRateLimitByIp(request, "auth:reset-password", { limit: 5, windowSec: 900 });
     if (limited) return limited;
     const parsed = await parseJsonBody(request, resetPasswordRequestSchema);
@@ -24,3 +25,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: mapped.message }, { status: mapped.status });
     }
 }
+
+export const POST = withApiLogging(postResetPassword);

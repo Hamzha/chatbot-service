@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyEmailToken } from "@repo/auth/lib/tokens";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 import { verifyUserEmail } from "@/lib/db/userRepo";
 
-export async function GET(request: NextRequest) {
+async function getVerifyEmail(request: NextRequest) {
     const limited = await requireRateLimitByIp(request, "auth:verify-email", { limit: 10, windowSec: 900 });
     if (limited) return limited;
 
@@ -45,3 +46,5 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
+
+export const GET = withApiLogging(getVerifyEmail);

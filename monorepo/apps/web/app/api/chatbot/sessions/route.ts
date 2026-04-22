@@ -7,6 +7,7 @@ import {
   parseJsonBody,
   validationError,
 } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { createChatSession, listChatSessions, resolveSessionSelectedDocuments } from "@/lib/db/chatSessionRepo";
 
@@ -17,7 +18,7 @@ const createSessionSchema = z.object({
     .min(1, "documentIds must be a non-empty array"),
 });
 
-export async function GET() {
+async function getSessions() {
   const auth = await requireUserIdWithPermission("chatbot_sessions:read");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -34,7 +35,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function postSessions(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_sessions:create");
   if (auth instanceof NextResponse) return auth;
   const { userId } = auth;
@@ -55,3 +56,6 @@ export async function POST(request: Request) {
     return validationError(errorMessage(error, "Failed to create session"));
   }
 }
+
+export const GET = withApiLogging(getSessions);
+export const POST = withApiLogging(postSessions);

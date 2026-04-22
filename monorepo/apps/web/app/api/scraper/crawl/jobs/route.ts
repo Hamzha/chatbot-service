@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { createCrawlJob, listCrawlJobsForUser } from "@/lib/db/crawlJobRepo";
 import { runCrawlJob } from "@/lib/scraper/crawlJobWorker";
@@ -16,7 +17,7 @@ const createCrawlJobSchema = z.object({
     max_depth: z.unknown().optional(),
 });
 
-export async function GET() {
+async function getCrawlJobs() {
     const gate = await requireUserIdWithPermission("scraper:create");
     if (gate instanceof NextResponse) return gate;
     const { userId } = gate;
@@ -27,7 +28,7 @@ export async function GET() {
     return NextResponse.json({ jobs });
 }
 
-export async function POST(req: NextRequest) {
+async function postCrawlJob(req: NextRequest) {
     const gate = await requireUserIdWithPermission("scraper:create");
     if (gate instanceof NextResponse) return gate;
     const { userId } = gate;
@@ -90,3 +91,6 @@ export function normalizeBoundedInt(
     if (rounded > max) return max;
     return rounded;
 }
+
+export const GET = withApiLogging(getCrawlJobs);
+export const POST = withApiLogging(postCrawlJob);
