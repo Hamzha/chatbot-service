@@ -14,10 +14,21 @@ type ChatMessagesProps = {
     messages: ChatMsg[];
     loadingHistory: boolean;
     isQuerying: boolean;
+    errorMessage: string | null;
+    canRetry: boolean;
+    onRetry: () => void;
     onPickPrompt: (prompt: string) => void;
 };
 
-export function ChatMessages({ messages, loadingHistory, isQuerying, onPickPrompt }: ChatMessagesProps) {
+export function ChatMessages({
+    messages,
+    loadingHistory,
+    isQuerying,
+    errorMessage,
+    canRetry,
+    onRetry,
+    onPickPrompt,
+}: ChatMessagesProps) {
     const endRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
@@ -45,6 +56,9 @@ export function ChatMessages({ messages, loadingHistory, isQuerying, onPickPromp
                 <MessageBubble key={m.id} message={m} />
             ))}
             {isQuerying ? <TypingBubble /> : null}
+            {errorMessage && !isQuerying ? (
+                <ErrorFallbackBubble errorMessage={errorMessage} canRetry={canRetry} onRetry={onRetry} />
+            ) : null}
             <div ref={endRef} />
         </ul>
     );
@@ -94,6 +108,39 @@ function TypingBubble() {
     );
 }
 
+function ErrorFallbackBubble({
+    errorMessage,
+    canRetry,
+    onRetry,
+}: {
+    errorMessage: string;
+    canRetry: boolean;
+    onRetry: () => void;
+}) {
+    return (
+        <li className="flex justify-start gap-2 sm:gap-3">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-700 text-xs font-semibold text-white shadow-lg shadow-brand-700/20">
+                AI
+            </div>
+            <div className="glass max-w-[85%] rounded-2xl rounded-bl-md border border-amber-300/70 px-3 py-2.5 text-sm text-slate-900 sm:max-w-[80%] sm:px-4 sm:py-3">
+                <p className="whitespace-pre-wrap">
+                    Sorry, I could not generate a response right now. Please retry.
+                </p>
+                <p className="mt-1 text-xs text-slate-600">{errorMessage}</p>
+                {canRetry ? (
+                    <button
+                        type="button"
+                        onClick={onRetry}
+                        className="mt-3 inline-flex h-9 items-center rounded-lg bg-brand-700 px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-800"
+                    >
+                        Retry
+                    </button>
+                ) : null}
+            </div>
+        </li>
+    );
+}
+
 function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
     return (
         <div className="flex h-full flex-col items-center justify-center px-2 text-center">
@@ -117,7 +164,7 @@ function EmptyState({ onPick }: { onPick: (prompt: string) => void }) {
                         key={prompt}
                         type="button"
                         onClick={() => onPick(prompt)}
-                        className="glass min-h-[44px] rounded-xl px-4 py-3 text-left text-sm text-slate-800 transition-colors hover:bg-white/85 hover:text-slate-900"
+                        className="glass min-h-11 rounded-xl px-4 py-3 text-left text-sm text-slate-800 transition-colors hover:bg-white/85 hover:text-slate-900"
                     >
                         {prompt}
                     </button>

@@ -62,6 +62,7 @@ export function ChatbotSessionClient() {
   const [status, setStatus] = useState("idle");
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [failedQuestion, setFailedQuestion] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [lastSources, setLastSources] = useState<string[]>([]);
   const askFnRef = useRef<((q: string) => Promise<void>) | null>(null);
@@ -153,19 +154,35 @@ export function ChatbotSessionClient() {
   }, [selectedDocumentsFromApi, session, labelByRag]);
 
   const ask = useCallback(
-    async (q: string) => {
-      if (!q.trim() || !sessionId) return;
+    async (q: string, options?: { isRetry?: boolean }) => {
+      const trimmedQuestion = q.trim();
+      if (!trimmedQuestion || !sessionId) return;
 
-      setQuestion("");
+      if (!options?.isRetry) {
+        setQuestion("");
+      }
       setStatus("querying");
       setError(null);
+      setFailedQuestion(null);
       setLastSources([]);
+
+      if (!options?.isRetry) {
+        // Add user message to chat immediately (optimistic UI)
+        const userMessageId = `user-${Date.now()}`;
+        const userMessage: ChatMsg = {
+          id: userMessageId,
+          role: "user",
+          content: trimmedQuestion,
+          createdAt: new Date().toISOString(),
+        };
+        setMessages((prev) => [...prev, userMessage]);
+      }
 
       try {
         const res = await fetch("/api/chatbot/query", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ question: q, top_k: 4, sessionId }),
+          body: JSON.stringify({ question: trimmedQuestion, top_k: 4, sessionId }),
         });
         const body = await parseJsonResponse<{ event_ids?: string[] }>(res);
         assertOkJson(res, body);
@@ -185,7 +202,7 @@ export function ChatbotSessionClient() {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
-              question: q,
+              question: trimmedQuestion,
               answer,
               sessionId,
             }),
@@ -197,14 +214,22 @@ export function ChatbotSessionClient() {
               : "Could not save conversation.";
             setError(msg);
           }
-          await loadMessages();
+          // Add bot response to chat instead of reloading all messages
+          const botMessage: ChatMsg = {
+            id: `bot-${Date.now()}`,
+            role: "assistant",
+            content: answer,
+            createdAt: new Date().toISOString(),
+          };
+          setMessages((prev) => [...prev, botMessage]);
         }
       } catch (err) {
         setStatus("error");
         setError(err instanceof Error ? err.message : String(err));
+        setFailedQuestion(trimmedQuestion);
       }
     },
-    [sessionId, loadMessages],
+    [sessionId],
   );
 
   askFnRef.current = ask;
@@ -233,6 +258,7 @@ export function ChatbotSessionClient() {
       setMessages([]);
       setLastSources([]);
       setError(null);
+      setFailedQuestion(null);
       toast.success("Conversation cleared", { id: loadingId });
     } catch (err) {
       const msg = extractErrorMessage(err, "Could not clear conversation");
@@ -327,6 +353,13 @@ export function ChatbotSessionClient() {
               messages={messages}
               loadingHistory={loadingHistory}
               isQuerying={isQuerying}
+              errorMessage={error}
+              canRetry={Boolean(failedQuestion) && !isQuerying}
+              onRetry={() => {
+                if (failedQuestion) {
+                  void ask(failedQuestion, { isRetry: true });
+                }
+              }}
               onPickPrompt={(p) => void askFnRef.current?.(p)}
             />
           </div>

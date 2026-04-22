@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 app/__init__.py
+app/auth.py
 app/config.py
 app/contracts.py
 app/engine.py
@@ -13,3 +14,6 @@ chatbot_backend.egg-info/SOURCES.txt
 chatbot_backend.egg-info/dependency_links.txt
 chatbot_backend.egg-info/requires.txt
 chatbot_backend.egg-info/top_level.txt
+tests/test_auth.py
+tests/test_engine_replace.py
+tests/test_main_security.py

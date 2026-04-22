@@ -55,6 +55,7 @@ async function postQuery(request: Request) {
     source_ids: expandedSourceIds,
     ...(conversation_context ? { conversation_context } : {}),
   };
+
   try {
     const res = await fetch(`${getChatbotApiBaseUrl()}/v1/query`, {
       method: "POST",
