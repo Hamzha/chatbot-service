@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { jsonError, parseJsonBody, upstreamError, validationError } from "@/lib/api/routeValidation";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { expandSessionRagKeys } from "@/lib/chatbot/expandSessionRagKeys";
 import { formatConversationContext } from "@/lib/chatbot/formatConversationContext";
@@ -7,6 +9,12 @@ import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { listChatbotMessages } from "@/lib/db/chatbotMessageRepo";
 import { getChatSession } from "@/lib/db/chatSessionRepo";
+
+const querySchema = z.object({
+  question: z.string().trim().min(1, "Missing question"),
+  top_k: z.number().int().min(1).max(20).optional(),
+  sessionId: z.string().trim().min(1, "Missing sessionId"),
+});
 
 export async function POST(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_query:create");
@@ -16,24 +24,16 @@ export async function POST(request: Request) {
   const limited = await requireRateLimitByUser(userId, "chatbot:query", { limit: 30, windowSec: 60 });
   if (limited) return limited;
 
-  const body = (await request.json()) as {
-    question?: string;
-    top_k?: number;
-    sessionId?: string;
-  };
-  if (typeof body.question !== "string" || !body.question.trim()) {
-    return NextResponse.json({ error: "Missing question" }, { status: 400 });
-  }
-  if (typeof body.sessionId !== "string" || !body.sessionId.trim()) {
-    return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
-  }
+  const parsed = await parseJsonBody(request, querySchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
-  const session = await getChatSession(userId, body.sessionId.trim());
+  const session = await getChatSession(userId, body.sessionId);
   if (!session) {
-    return NextResponse.json({ error: "Chat session not found" }, { status: 404 });
+    return jsonError("Chat session not found", 404);
   }
   if (session.selectedRagKeys.length === 0) {
-    return NextResponse.json({ error: "This chat has no documents selected" }, { status: 400 });
+    return validationError("This chat has no documents selected");
   }
 
   // Expand site-aggregator keys to the full page-level key list at query time so that
@@ -41,13 +41,10 @@ export async function POST(request: Request) {
   // any session-level migration.
   const expandedSourceIds = await expandSessionRagKeys(userId, session.selectedRagKeys);
   if (expandedSourceIds.length === 0) {
-    return NextResponse.json(
-      { error: "The documents selected for this chat no longer have indexed content" },
-      { status: 400 },
-    );
+    return validationError("The documents selected for this chat no longer have indexed content");
   }
 
-  const priorMessages = await listChatbotMessages(userId, body.sessionId.trim(), 80);
+  const priorMessages = await listChatbotMessages(userId, body.sessionId, 80);
   const conversation_context = formatConversationContext(
     priorMessages.map((m) => ({ role: m.role, content: m.content })),
   );
@@ -68,10 +65,7 @@ export async function POST(request: Request) {
     });
     const text = await res.text();
     return proxyChatbotResponse(res, text);
-  } catch (e) {
-    return NextResponse.json(
-      { error: "Cannot reach chatbot service", detail: String(e) },
-      { status: 502 },
-    );
+  } catch (error) {
+    return upstreamError(error, "Cannot reach chatbot service");
   }
 }

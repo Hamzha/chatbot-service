@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { requireApiPermission } from "@/lib/auth/requireApiPermission";
+import { upstreamError, validationError } from "@/lib/api/routeValidation";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
 export async function GET(
   _request: Request,
@@ -9,22 +11,22 @@ export async function GET(
 ) {
   const gate = await requireApiPermission("chatbot_jobs:read");
   if (gate instanceof NextResponse) return gate;
+  const limited = await requireRateLimitByUser(gate.ctx.userId, "chatbot:jobs:read", {
+    limit: 60,
+    windowSec: 60,
+  });
+  if (limited) return limited;
 
   const { eventId } = await params;
+  if (!eventId || !eventId.trim()) {
+    return validationError("Missing eventId");
+  }
   try {
-    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/jobs/${eventId}`, { method: "GET" });
+    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/jobs/${eventId.trim()}`, { method: "GET" });
     const text = await res.text();
     return proxyChatbotResponse(res, text);
-  } catch (e) {
-    return NextResponse.json(
-      {
-        error: "Cannot reach chatbot service",
-        detail: String(e),
-        baseUrl: getChatbotApiBaseUrl(),
-        hint: "Start chatbot-api (port 8001, e.g. turbo run dev). Use http://127.0.0.1:8001 in CHATBOT_API_URL if localhost fails on Windows.",
-      },
-      { status: 502 },
-    );
+  } catch (error) {
+    return upstreamError(error, "Cannot reach chatbot service");
   }
 }
 

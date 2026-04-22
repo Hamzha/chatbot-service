@@ -1,23 +1,23 @@
 import { NextResponse } from "next/server";
-import { getCurrentUserFromToken } from "@/lib/auth/authService";
-import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { notFoundError } from "@/lib/api/routeValidation";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { listChatSessions } from "@/lib/db/chatSessionRepo";
 
 export async function GET() {
-  const token = await getSessionCookie();
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const gate = await requireUserIdWithPermission("chatbot_sessions:read");
+  if (gate instanceof NextResponse) return gate;
+  const { userId } = gate;
+  const limited = await requireRateLimitByUser(userId, "chatbot:bot-id:read", {
+    limit: 30,
+    windowSec: 60,
+  });
+  if (limited) return limited;
 
-  const user = await getCurrentUserFromToken(token);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const sessions = await listChatSessions(user.id);
+  const sessions = await listChatSessions(userId);
   const botId = sessions[0]?.id ?? null;
   if (!botId) {
-    return NextResponse.json({ error: "No chatbots found" }, { status: 404 });
+    return notFoundError("No chatbots found");
   }
 
   return NextResponse.json({ botId });

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { internalServerError, notFoundError, upstreamError, validationError } from "@/lib/api/routeValidation";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { deleteChatbotDocumentById, getChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
 
 type VectorDeletionFailure = { key: string; status: number; detail: string };
@@ -27,15 +29,20 @@ export async function DELETE(
     const auth = await requireUserIdWithPermission("chatbot_documents:delete");
     if (auth instanceof NextResponse) return auth;
     const { userId } = auth;
+    const limited = await requireRateLimitByUser(userId, "chatbot:documents:delete", {
+        limit: 20,
+        windowSec: 60,
+    });
+    if (limited) return limited;
 
     const { documentId } = await params;
     if (!documentId) {
-        return NextResponse.json({ error: "Missing document id" }, { status: 400 });
+        return validationError("Missing document id");
     }
 
     const existing = await getChatbotDocument(userId, documentId);
     if (!existing) {
-        return NextResponse.json({ error: "Document not found" }, { status: 404 });
+        return notFoundError("Document not found");
     }
 
     // For a site aggregator row, purge every per-page Chroma source; for a regular upload,
@@ -57,30 +64,21 @@ export async function DELETE(
                 failures.push(failure);
             }
         }
-    } catch (e) {
-        return NextResponse.json(
-            { error: "Cannot reach chatbot service", detail: String(e) },
-            { status: 502 },
-        );
+    } catch (error) {
+        return upstreamError(error, "Cannot reach chatbot service");
     }
 
     if (failures.length > 0) {
-        return NextResponse.json(
-            {
-                error: "Failed to remove vectors for one or more pages",
-                failures,
-            },
-            { status: 502 },
+        return upstreamError(
+            failures.map((f) => `${f.key}:${f.status}`).join(", "),
+            `Failed to remove vectors for one or more pages (${failures.length})`,
         );
     }
 
     try {
         await deleteChatbotDocumentById(userId, documentId);
-    } catch (e) {
-        return NextResponse.json(
-            { error: "Vectors removed but failed to remove document record", detail: String(e) },
-            { status: 500 },
-        );
+    } catch (error) {
+        return internalServerError(error, "Vectors removed but failed to remove document record");
     }
     return NextResponse.json({ ok: true, deletedPages: keysToDelete.length });
 }

@@ -30,6 +30,11 @@ export function internalServerError(error: unknown, fallback: string): NextRespo
   return jsonError(fallback, 500);
 }
 
+export function upstreamError(error: unknown, fallback: string): NextResponse<JsonError> {
+  console.error(error);
+  return jsonError(fallback, 502);
+}
+
 export async function parseJsonBody<T>(
   request: Request,
   schema: ZodType<T>,

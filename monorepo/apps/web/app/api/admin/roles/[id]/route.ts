@@ -1,15 +1,40 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireApiPermission } from "@/lib/auth/requireApiPermission";
+import {
+    conflictError,
+    errorMessage,
+    notFoundError,
+    parseJsonBody,
+    validationError,
+} from "@/lib/api/routeValidation";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { deleteRoleById, findRoleById, updateRole } from "@/lib/db/roleRepo";
+
+const updateRoleSchema = z
+    .object({
+        name: z.string().optional(),
+        description: z.string().optional(),
+        permissionCodes: z.array(z.string()).optional(),
+        enabled: z.boolean().optional(),
+    })
+    .refine((v) => Object.keys(v).length > 0, { message: "No updates provided" });
+
+const deleteRoleSchema = z.object({ detachUsers: z.boolean().optional().default(false) });
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("roles:read");
     if (gate instanceof NextResponse) return gate;
+    const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:item:read", {
+        limit: 90,
+        windowSec: 60,
+    });
+    if (limited) return limited;
 
     const { id } = await params;
     const role = await findRoleById(id);
     if (!role) {
-        return NextResponse.json({ error: "Not found" }, { status: 404 });
+        return notFoundError();
     }
     return NextResponse.json({ role });
 }
@@ -17,71 +42,51 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("roles:update");
     if (gate instanceof NextResponse) return gate;
+    const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:item:update", {
+        limit: 30,
+        windowSec: 60,
+    });
+    if (limited) return limited;
 
     const { id } = await params;
-    let body: unknown;
-    try {
-        body = await request.json();
-    } catch {
-        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
-    const b = body as { name?: unknown; description?: unknown; permissionCodes?: unknown; enabled?: unknown };
-    const patch: { name?: string; description?: string; permissionCodes?: string[]; enabled?: boolean } = {};
-    if (b.name !== undefined) {
-        if (typeof b.name !== "string") return NextResponse.json({ error: "name must be a string" }, { status: 400 });
-        patch.name = b.name;
-    }
-    if (b.description !== undefined) {
-        if (typeof b.description !== "string") {
-            return NextResponse.json({ error: "description must be a string" }, { status: 400 });
-        }
-        patch.description = b.description;
-    }
-    if (b.permissionCodes !== undefined) {
-        if (!Array.isArray(b.permissionCodes)) {
-            return NextResponse.json({ error: "permissionCodes must be an array" }, { status: 400 });
-        }
-        patch.permissionCodes = b.permissionCodes.filter((c): c is string => typeof c === "string");
-    }
-    if (b.enabled !== undefined) {
-        if (typeof b.enabled !== "boolean") {
-            return NextResponse.json({ error: "enabled must be a boolean" }, { status: 400 });
-        }
-        patch.enabled = b.enabled;
-    }
-    if (Object.keys(patch).length === 0) {
-        return NextResponse.json({ error: "No updates provided" }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(request, updateRoleSchema);
+    if (!parsed.ok) return parsed.response;
+    const patch = parsed.data;
 
     try {
         const role = await updateRole(id, patch);
-        if (!role) return NextResponse.json({ error: "Not found" }, { status: 404 });
+        if (!role) return notFoundError();
         return NextResponse.json({ role });
-    } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+    } catch (error) {
+        const msg = errorMessage(error, "Failed to update role");
         const status = msg.includes("System roles cannot") ? 409 : 400;
-        return NextResponse.json({ error: msg }, { status });
+        return status === 409 ? conflictError(msg) : validationError(msg);
     }
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const gate = await requireApiPermission("roles:delete");
     if (gate instanceof NextResponse) return gate;
+    const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:item:delete", {
+        limit: 20,
+        windowSec: 60,
+    });
+    if (limited) return limited;
 
     const { id } = await params;
     let detachUsers = false;
-    try {
-        const body = await request.json();
-        const b = body as { detachUsers?: unknown };
-        detachUsers = b.detachUsers === true;
-    } catch {
-        /* no body */
+    if ((request.headers.get("content-length") ?? "0") !== "0") {
+        const parsed = await parseJsonBody(request, deleteRoleSchema);
+        if (!parsed.ok) return parsed.response;
+        detachUsers = parsed.data.detachUsers;
     }
     const result = await deleteRoleById(id, { detachUsers });
     if (!result.ok) {
         const status =
             result.reason === "not_found" ? 404 : result.reason === "system_role" || result.reason === "role_in_use" ? 409 : 400;
-        return NextResponse.json({ error: result.reason ?? "delete_failed" }, { status });
+        if (status === 404) return notFoundError();
+        if (status === 409) return conflictError(result.reason ?? "delete_failed");
+        return validationError(result.reason ?? "delete_failed");
     }
     return NextResponse.json({ ok: true });
 }

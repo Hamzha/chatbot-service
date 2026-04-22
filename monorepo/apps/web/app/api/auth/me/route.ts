@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { getCurrentUserFromToken, mapAuthError } from "@/lib/auth/authService";
+import { parseJsonBody } from "@/lib/api/routeValidation";
 import { getAuthContextForUserId } from "@/lib/auth/authorization";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
 import { profileUpdateSchema } from "@repo/auth/validators";
 import { toSafeUser, updateUserName } from "@/lib/db/userRepo";
@@ -16,6 +18,8 @@ export async function GET() {
     if (!user) {
         return NextResponse.json({ user: null }, { status: 401 });
     }
+    const limited = await requireRateLimitByUser(user.id, "auth:me:read", { limit: 60, windowSec: 60 });
+    if (limited) return limited;
 
     const ctx = await getAuthContextForUserId(user.id);
     const permissions = ctx ? [...ctx.permissions].sort() : [];
@@ -34,17 +38,14 @@ export async function PATCH(request: Request) {
     if (!safeUser) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const limited = await requireRateLimitByUser(safeUser.id, "auth:me:update", { limit: 20, windowSec: 60 });
+    if (limited) return limited;
 
-    let body: unknown;
-    try {
-        body = await request.json();
-    } catch {
-        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
+    const parsedBody = await parseJsonBody(request, profileUpdateSchema);
+    if (!parsedBody.ok) return parsedBody.response;
 
     try {
-        const parsed = profileUpdateSchema.parse(body);
-        const updated = await updateUserName(safeUser.id, parsed.name);
+        const updated = await updateUserName(safeUser.id, parsedBody.data.name);
         if (!updated) {
             return NextResponse.json({ error: "Unable to update profile." }, { status: 400 });
         }

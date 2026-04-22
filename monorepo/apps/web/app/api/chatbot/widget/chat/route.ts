@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { parseJsonBody } from "@/lib/api/routeValidation";
 import { validateWidgetRequest } from "@/lib/chatbot/validateWidgetRequest";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
+
+const widgetChatSchema = z.object({
+  botId: z.unknown(),
+  message: z.unknown(),
+});
 
 export async function POST(request: Request) {
   const limited = await requireRateLimitByIp(request, "widget:chat", { limit: 30, windowSec: 60 });
   if (limited) return limited;
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const result = await validateWidgetRequest(body as { botId: unknown; message: unknown });
+  const parsed = await parseJsonBody(request, widgetChatSchema);
+  if (!parsed.ok) return parsed.response;
+  const result = await validateWidgetRequest(parsed.data);
 
   if (!result.valid) {
     return NextResponse.json({ error: result.error }, { status: result.status });

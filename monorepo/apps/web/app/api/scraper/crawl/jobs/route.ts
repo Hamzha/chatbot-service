@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { parseJsonBody, validationError } from "@/lib/api/routeValidation";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { createCrawlJob, listCrawlJobsForUser } from "@/lib/db/crawlJobRepo";
 import { runCrawlJob } from "@/lib/scraper/crawlJobWorker";
@@ -7,11 +9,19 @@ import { runCrawlJob } from "@/lib/scraper/crawlJobWorker";
 const ALLOWED_MODES = new Set(["auto", "static", "dynamic"]);
 const DEFAULT_MAX_PAGES = 10;
 const DEFAULT_MAX_DEPTH = 2;
+const createCrawlJobSchema = z.object({
+    url: z.string().trim().min(1, "`url` is required"),
+    mode: z.string().optional(),
+    max_pages: z.unknown().optional(),
+    max_depth: z.unknown().optional(),
+});
 
 export async function GET() {
     const gate = await requireUserIdWithPermission("scraper:create");
     if (gate instanceof NextResponse) return gate;
     const { userId } = gate;
+    const limited = await requireRateLimitByUser(userId, "scraper:crawl:list", { limit: 30, windowSec: 60 });
+    if (limited) return limited;
 
     const jobs = await listCrawlJobsForUser(userId, 20);
     return NextResponse.json({ jobs });
@@ -25,34 +35,18 @@ export async function POST(req: NextRequest) {
     const limited = await requireRateLimitByUser(userId, "scraper:crawl", { limit: 5, windowSec: 60 });
     if (limited) return limited;
 
-    let body: unknown;
-    try {
-        body = await req.json();
-    } catch {
-        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
+    const parsed = await parseJsonBody(req, createCrawlJobSchema);
+    if (!parsed.ok) return parsed.response;
+    const input = parsed.data;
 
-    const input = body as {
-        url?: unknown;
-        mode?: unknown;
-        max_pages?: unknown;
-        max_depth?: unknown;
-    };
-
-    const rawUrl = typeof input.url === "string" ? input.url.trim() : "";
-    if (!rawUrl) {
-        return NextResponse.json({ error: "`url` is required" }, { status: 400 });
-    }
+    const rawUrl = input.url.trim();
     try {
         const parsed = new URL(rawUrl);
         if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-            return NextResponse.json(
-                { error: "`url` must be http:// or https://" },
-                { status: 400 },
-            );
+            return validationError("`url` must be http:// or https://");
         }
     } catch {
-        return NextResponse.json({ error: "`url` is not a valid URL" }, { status: 400 });
+        return validationError("`url` is not a valid URL");
     }
 
     const mode =
