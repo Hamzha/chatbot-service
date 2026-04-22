@@ -109,7 +109,7 @@ export function AuthShell({
                 </div>
                 </section>
             </main>
-            <div className="px-4 pb-8 pt-2 sm:px-6 sm:pb-10 lg:px-10">
+            <div className="px-4 pb-8 pt-6 sm:px-6 sm:pb-10 sm:pt-8 lg:px-10">
                 <SiteFooter width="6xl" />
             </div>
         </div>

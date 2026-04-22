@@ -91,7 +91,7 @@ export default function Home() {
       <main
         id="content"
         tabIndex={-1}
-        className="relative flex flex-col gap-14 px-4 pb-20 pt-24 sm:gap-20 sm:px-6 sm:pb-24 sm:pt-32 lg:px-10 focus:outline-none"
+        className="relative flex flex-col gap-14 px-4 pb-8 pt-24 sm:gap-20 sm:px-6 sm:pb-10 sm:pt-32 lg:px-10 focus:outline-none"
       >
         <Hero />
         <ProductPreview />
@@ -102,7 +102,7 @@ export default function Home() {
         <FinalCta />
       </main>
 
-      <div className="px-4 pb-8 pt-4 sm:px-6 sm:pb-10 lg:px-10">
+      <div className="px-4 pb-8 pt-2 sm:px-6 sm:pb-10 sm:pt-3 lg:px-10">
         <SiteFooter width="6xl" />
       </div>
 
@@ -201,7 +201,7 @@ type User = { email: string } | null;
 function TopBar() {
   return (
     <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-6 sm:pt-4 lg:px-10">
-      <div className="glass mx-auto flex max-w-6xl items-center justify-between gap-2 rounded-2xl px-3 py-2.5 sm:px-6 sm:py-3">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white shadow-sm px-3 py-2.5 sm:px-6 sm:py-3">
         <Link
           href="/"
           className="flex min-w-0 items-center gap-2"
