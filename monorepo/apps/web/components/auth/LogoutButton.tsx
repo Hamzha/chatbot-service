@@ -4,7 +4,20 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@repo/auth/hooks/useAuth";
 
-export function LogoutButton() {
+type LogoutButtonProps = {
+    /**
+     * Optional class override. When provided, it fully replaces the default
+     * layout/appearance classes (useful when embedding inside a row of
+     * inline-flex CTAs where `w-full` would distort the layout). When omitted,
+     * the button keeps its sidebar-friendly full-width pill look.
+     */
+    className?: string;
+};
+
+const DEFAULT_CLASS =
+    "flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-slate-800 hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60";
+
+export function LogoutButton({ className }: LogoutButtonProps = {}) {
     const router = useRouter();
     const { logout } = useAuth();
     const [busy, setBusy] = useState(false);
@@ -25,7 +38,7 @@ export function LogoutButton() {
             type="button"
             onClick={() => void handleLogout()}
             disabled={busy}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-800 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-slate-800 hover:border-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+            className={className ?? DEFAULT_CLASS}
         >
             <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path

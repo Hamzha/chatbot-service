@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import Script from "next/script";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { SiteFooter } from "@/components/shell/SiteFooter";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
 
@@ -108,7 +109,9 @@ export default function Home() {
         <FinalCta />
       </main>
 
-      <Footer />
+      <div className="px-4 pb-8 pt-4 sm:px-6 sm:pb-10 lg:px-10">
+        <SiteFooter width="6xl" />
+      </div>
 
       <StructuredData siteUrl={siteUrl} />
 
@@ -172,28 +175,28 @@ function StructuredData({ siteUrl }: { siteUrl: string }) {
 
   return (
     <>
-      <Script
+      <script
         id="ld-organization"
         type="application/ld+json"
-        strategy="beforeInteractive"
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: JSON.stringify(organization) }}
       />
-      <Script
+      <script
         id="ld-website"
         type="application/ld+json"
-        strategy="beforeInteractive"
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: JSON.stringify(website) }}
       />
-      <Script
+      <script
         id="ld-software"
         type="application/ld+json"
-        strategy="beforeInteractive"
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplication) }}
       />
-      <Script
+      <script
         id="ld-faq"
         type="application/ld+json"
-        strategy="beforeInteractive"
+        suppressHydrationWarning
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPage) }}
       />
     </>
@@ -418,15 +421,15 @@ async function HeroCtaAsync() {
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
         <Link
           href="/dashboard"
-          className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 sm:w-auto"
         >
           Open dashboard
         </Link>
-        <LogoutButton />
+        <LogoutButton className="glass inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-slate-800 transition hover:bg-white/80 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto" />
       </div>
-      <p className="glass inline-flex max-w-full items-center gap-2 rounded-xl border-emerald-200/60 px-3 py-2 text-sm text-emerald-800">
+      <p className="glass inline-flex w-full max-w-full items-center gap-2 self-start rounded-xl border-emerald-200/60 px-3 py-2 text-sm text-emerald-800 sm:w-auto">
         <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
-        <span className="truncate">
+        <span className="min-w-0 truncate">
           Signed in as <span className="font-semibold">{user.email}</span>
         </span>
       </p>
@@ -1086,33 +1089,3 @@ function FinalCta() {
   );
 }
 
-function Footer() {
-  return (
-    <footer className="mx-auto w-full max-w-6xl px-4 pb-10 sm:px-6 lg:px-10">
-      <div className="glass flex flex-col items-start justify-between gap-4 rounded-2xl px-5 py-4 text-sm text-slate-600 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-700 text-xs font-bold text-white">
-            AI
-          </span>
-          <span className="font-semibold text-slate-900">Chatbot Platform</span>
-          <span className="text-slate-500" aria-hidden="true">·</span>
-          <span>© {new Date().getFullYear()}</span>
-        </div>
-        <nav aria-label="Footer" className="flex flex-wrap items-center gap-4">
-          <Link href="/login" className="transition hover:text-slate-900">
-            Log in
-          </Link>
-          <Link href="/signup" className="transition hover:text-slate-900">
-            Sign up
-          </Link>
-          <Link href="/dashboard" className="transition hover:text-slate-900">
-            Dashboard
-          </Link>
-          <a href="#faq" className="transition hover:text-slate-900">
-            FAQ
-          </a>
-        </nav>
-      </div>
-    </footer>
-  );
-}

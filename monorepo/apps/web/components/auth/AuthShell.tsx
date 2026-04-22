@@ -1,5 +1,7 @@
 import type { PropsWithChildren, ReactNode } from "react";
 
+import { SiteFooter } from "@/components/shell/SiteFooter";
+
 type AuthShellProps = PropsWithChildren<{
     badge: string;
     title: string;
@@ -40,15 +42,16 @@ export function AuthShell({
         !compact && Boolean(sideTitle && sideDescription && sidePoints && sidePoints.length > 0);
 
     return (
-        <main className="relative flex min-h-screen items-center justify-center overflow-x-hidden px-4 py-8 sm:px-6 sm:py-10">
-            <section
-                className={[
-                    "glass-strong relative mx-auto grid w-full overflow-hidden rounded-3xl",
-                    sidePanelEnabled
-                        ? "max-w-6xl lg:grid-cols-[1fr_1.05fr]"
-                        : "max-w-md",
-                ].join(" ")}
-            >
+        <div className="flex min-h-screen flex-col overflow-x-hidden">
+            <main className="relative flex flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-10">
+                <section
+                    className={[
+                        "glass-strong relative mx-auto grid w-full overflow-hidden rounded-3xl",
+                        sidePanelEnabled
+                            ? "max-w-6xl lg:grid-cols-[1fr_1.05fr]"
+                            : "max-w-md",
+                    ].join(" ")}
+                >
                 {sidePanelEnabled ? (
                     <aside
                         className="glass-dark relative hidden flex-col justify-between gap-8 p-10 lg:flex"
@@ -104,7 +107,11 @@ export function AuthShell({
                         ) : null}
                     </section>
                 </div>
-            </section>
-        </main>
+                </section>
+            </main>
+            <div className="px-4 pb-8 pt-2 sm:px-6 sm:pb-10 lg:px-10">
+                <SiteFooter width="6xl" />
+            </div>
+        </div>
     );
 }

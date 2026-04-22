@@ -107,12 +107,13 @@ export default async function DashboardPage() {
                                 )}
                             </div>
 
-                            <div className="glass-muted mb-3 flex h-12 w-12 items-center justify-center rounded-2xl text-brand-700 sm:mb-4">
-                                {item.icon}
+                            <div className="mb-3 flex items-center gap-3 sm:mb-4">
+                                <div className="glass-muted flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-brand-700">
+                                    {item.icon}
+                                </div>
+                                <h3 className="min-w-0 text-lg font-semibold text-slate-900">{item.title}</h3>
                             </div>
-
-                            <h3 className="text-lg font-semibold text-slate-900">{item.title}</h3>
-                            <p className="mt-1 text-sm leading-6 text-slate-700">{item.description}</p>
+                            <p className="text-sm leading-6 text-slate-700">{item.description}</p>
 
                             <div className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition group-hover:gap-2.5 sm:mt-5">
                                 {item.cta}

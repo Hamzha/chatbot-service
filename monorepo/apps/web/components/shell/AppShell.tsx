@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AppShellProvider } from "./AppShellContext";
 import { MobileTopBar } from "./MobileTopBar";
 import { SidebarDrawer } from "./SidebarDrawer";
+import { SiteFooter } from "./SiteFooter";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 
 type AppShellProps = {
@@ -33,6 +34,9 @@ export function AppShell({ userName, userEmail, permissions, children }: AppShel
                     <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
                         {children}
                     </main>
+                    <div className="px-4 pb-6 pt-2 sm:px-6 sm:pb-8 lg:px-8">
+                        <SiteFooter width="7xl" />
+                    </div>
                 </div>
             </div>
         </AppShellProvider>

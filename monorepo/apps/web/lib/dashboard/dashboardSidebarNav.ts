@@ -5,7 +5,7 @@
 export const DASHBOARD_SIDEBAR_NAV = [
     {
         id: "nav.dashboard.overview",
-        label: "Overview",
+        label: "Dashboard",
         href: "/dashboard",
         permission: "dashboard:read",
     },
