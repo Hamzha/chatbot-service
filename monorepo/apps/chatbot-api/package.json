@@ -6,9 +6,10 @@
     "setup": "python -m venv .venv && npm run install:python",
     "dev": ".venv\\Scripts\\python -m uvicorn app.main:app --reload --port 8001",
     "build": "echo No build step for Python service",
-    "lint": "echo No JS lint for Python service",
-    "check-types": "echo No type-check for Python service",
+    "lint": ".venv\\Scripts\\python -m ruff check app tests",
+    "check-types": ".venv\\Scripts\\python -m compileall -q app",
+    "test": ".venv\\Scripts\\python -m pytest -q",
     "start": ".venv\\Scripts\\python -m uvicorn app.main:app --host 0.0.0.0 --port 8001",
-    "install:python": ".venv\\Scripts\\pip install -e ."
+    "install:python": ".venv\\Scripts\\pip install -e .[dev]"
   }
 }

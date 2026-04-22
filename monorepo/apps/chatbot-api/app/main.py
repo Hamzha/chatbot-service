@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
 from pathlib import Path
+from typing import Annotated
+from uuid import uuid4
 
 import inngest
 import inngest.fast_api
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.exception_handlers import (
     http_exception_handler,
     request_validation_exception_handler,
@@ -17,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
+from app.auth import AuthenticatedUser, resolve_authenticated_user
 from app.config import settings
 from app.contracts import IngestInput, IngestTextInput, IngestTextRequest, QueryInput, QueryRequest
 from app.engine import IngestPdfUseCase, IngestTextUseCase, QueryRagUseCase
@@ -26,10 +30,12 @@ from app.vector_store import ChromaVectorStore
 load_dotenv()
 
 app = FastAPI(title="chatbot-backend", version="0.1.0")
+logger = logging.getLogger("chatbot-api")
+logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -109,23 +115,41 @@ def health() -> dict[str, str]:
 @app.post("/v1/ingest")
 async def ingest(
     file: UploadFile = File(...),
-    x_user_id: str | None = Header(default=None),
     x_rag_source_id: str | None = Header(default=None, alias="x-rag-source-id"),
+    user: Annotated[AuthenticatedUser, Depends(resolve_authenticated_user)] = None,
 ):
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="Missing x-user-id header")
-    if not file.filename.lower().endswith(".pdf"):
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are accepted")
-    rag_key = (x_rag_source_id or "").strip() or file.filename
-    uploads_dir = Path("uploads")
+    rag_key = (x_rag_source_id or "").strip() or filename
+    uploads_dir = Path("uploads").resolve()
     uploads_dir.mkdir(parents=True, exist_ok=True)
-    target = uploads_dir / f"{int(datetime.datetime.utcnow().timestamp())}-{file.filename}"
-    content = await file.read()
-    target.write_bytes(content)
+    safe_name = Path(filename).name
+    now_ts = int(datetime.datetime.now(datetime.UTC).timestamp())
+    target = (uploads_dir / f"{now_ts}-{uuid4().hex}-{safe_name}").resolve()
+    if uploads_dir not in target.parents:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    written = 0
+    with target.open("wb") as out:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > settings.max_upload_size_bytes:
+                out.close()
+                target.unlink(missing_ok=True)
+                raise HTTPException(status_code=413, detail="Uploaded file is too large")
+            out.write(chunk)
+    if written == 0:
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
     event_ids = await inngest_client.send(
         inngest.Event(
             name="chatbot/ingest_pdf",
-            data={"user_id": x_user_id, "pdf_path": str(target), "source_id": rag_key},
+            data={"user_id": user.user_id, "pdf_path": str(target), "source_id": rag_key},
         )
     )
     return {"event_ids": event_ids, "source_id": rag_key}
@@ -134,15 +158,13 @@ async def ingest(
 @app.post("/v1/ingest-text")
 async def ingest_text(
     body: IngestTextRequest,
-    x_user_id: str | None = Header(default=None),
+    user: Annotated[AuthenticatedUser, Depends(resolve_authenticated_user)] = None,
 ):
     """Ingest plain text (e.g. web scrape) into Chroma for the authenticated user."""
-    if not x_user_id or not x_user_id.strip():
-        raise HTTPException(status_code=401, detail="Missing x-user-id header")
-    uid = x_user_id.strip()
+    uid = user.user_id
     sid = body.source_id.strip()
     payload = IngestTextInput(user_id=uid, source_id=sid, text_content=body.text_content)
-    result = ingest_text_use_case.execute(payload)
+    result = await asyncio.to_thread(ingest_text_use_case.execute, payload)
     return {"ingested": result.ingested, "source_id": result.source}
 
 
@@ -154,16 +176,17 @@ def _normalize_source_ids(raw: list[str] | None) -> list[str] | None:
 
 
 @app.post("/v1/query")
-async def query(body: QueryRequest, x_user_id: str | None = Header(default=None)):
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+async def query(
+    body: QueryRequest,
+    user: Annotated[AuthenticatedUser, Depends(resolve_authenticated_user)] = None,
+):
     cc = body.conversation_context.strip() if body.conversation_context else None
     source_ids = _normalize_source_ids(body.source_ids)
     event_ids = await inngest_client.send(
         inngest.Event(
             name="chatbot/query",
             data={
-                "user_id": x_user_id,
+                "user_id": user.user_id,
                 "question": body.question,
                 "top_k": body.top_k,
                 "conversation_context": cc,
@@ -175,19 +198,21 @@ async def query(body: QueryRequest, x_user_id: str | None = Header(default=None)
 
 
 @app.post("/v1/query/sync")
-async def query_sync(body: QueryRequest, x_user_id: str | None = Header(default=None)):
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="Missing x-user-id header")
+async def query_sync(
+    body: QueryRequest,
+    user: Annotated[AuthenticatedUser, Depends(resolve_authenticated_user)] = None,
+):
     cc = body.conversation_context.strip() if body.conversation_context else None
     source_ids = _normalize_source_ids(body.source_ids)
     payload = QueryInput(
-        user_id=x_user_id,
+        user_id=user.user_id,
         question=body.question,
         top_k=body.top_k,
         conversation_context=cc,
         source_ids=source_ids,
     )
-    return query_use_case.execute(payload).model_dump()
+    result = await asyncio.to_thread(query_use_case.execute, payload)
+    return result.model_dump()
 
 
 @app.get("/v1/jobs/{event_id}")
@@ -210,17 +235,16 @@ async def get_job(event_id: str):
 
 
 @app.get("/v1/sources")
-async def list_sources(x_user_id: str | None = Header(default=None)):
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="Missing x-user-id header")
-    return {"sources": store.list_sources(x_user_id)}
+async def list_sources(user: Annotated[AuthenticatedUser, Depends(resolve_authenticated_user)] = None):
+    return {"sources": store.list_sources(user.user_id)}
 
 
 @app.delete("/v1/sources/{source_id}")
-async def delete_source(source_id: str, x_user_id: str | None = Header(default=None)):
-    if not x_user_id:
-        raise HTTPException(status_code=401, detail="Missing x-user-id header")
-    deleted = store.delete_source(user_id=x_user_id, source_id=source_id)
+async def delete_source(
+    source_id: str,
+    user: Annotated[AuthenticatedUser, Depends(resolve_authenticated_user)] = None,
+):
+    deleted = store.delete_source(user_id=user.user_id, source_id=source_id)
     return {"deleted_chunks": deleted, "source": source_id}
 
 
@@ -231,14 +255,17 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         return await http_exception_handler(request, exc)
     if isinstance(exc, RequestValidationError):
         return await request_validation_exception_handler(request, exc)
-    import traceback
-
-    traceback.print_exc()
+    request_id = request.headers.get("x-request-id", uuid4().hex)
+    logger.exception("Unhandled exception request_id=%s path=%s", request_id, request.url.path)
+    detail = "Internal server error"
+    if not settings.is_production:
+        detail = f"{type(exc).__name__}: {exc}"
     return JSONResponse(
         status_code=500,
         content={
-            "detail": f"{type(exc).__name__}: {exc}",
+            "detail": detail,
             "error": "internal_server_error",
+            "request_id": request_id,
         },
     )
 

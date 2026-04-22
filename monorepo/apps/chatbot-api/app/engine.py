@@ -12,6 +12,28 @@ def _deterministic_id(user_id: str, source_id: str, i: int) -> str:
     return hashlib.sha256(f"{user_id}:{source_id}:{i}".encode("utf-8")).hexdigest()[:32]
 
 
+def _replace_source_chunks_atomically(
+    *,
+    store: ChromaVectorStore,
+    user_id: str,
+    source_id: str,
+    chunks: list[str],
+    vectors: list[list[float]],
+) -> None:
+    old_count = store.count_source_chunks(user_id=user_id, source_id=source_id)
+    ids = [_deterministic_id(user_id, source_id, i) for i in range(len(chunks))]
+    store.upsert(
+        ids=ids,
+        vectors=vectors,
+        docs=chunks,
+        sources=[source_id] * len(chunks),
+        user_ids=[user_id] * len(chunks),
+    )
+    if old_count > len(chunks):
+        stale_ids = [_deterministic_id(user_id, source_id, i) for i in range(len(chunks), old_count)]
+        store.delete_ids(stale_ids)
+
+
 class IngestPdfUseCase:
     def __init__(self, embedder: Embedder, store: ChromaVectorStore) -> None:
         self.embedder = embedder
@@ -20,15 +42,15 @@ class IngestPdfUseCase:
     def execute(self, data: IngestInput) -> IngestOutput:
         chunks = load_and_chunk_pdf(data.pdf_path)
         if not chunks:
+            self.store.delete_source(user_id=data.user_id, source_id=data.source_id)
             return IngestOutput(ingested=0, source=data.source_id)
         vectors = self.embedder.embed_texts(chunks)
-        ids = [_deterministic_id(data.user_id, data.source_id, i) for i in range(len(chunks))]
-        self.store.upsert(
-            ids=ids,
+        _replace_source_chunks_atomically(
+            store=self.store,
+            user_id=data.user_id,
+            source_id=data.source_id,
+            chunks=chunks,
             vectors=vectors,
-            docs=chunks,
-            sources=[data.source_id] * len(chunks),
-            user_ids=[data.user_id] * len(chunks),
         )
         return IngestOutput(ingested=len(chunks), source=data.source_id)
 
@@ -43,16 +65,15 @@ class IngestTextUseCase:
     def execute(self, data: IngestTextInput) -> IngestOutput:
         chunks = chunk_text(data.text_content)
         if not chunks:
+            self.store.delete_source(user_id=data.user_id, source_id=data.source_id)
             return IngestOutput(ingested=0, source=data.source_id)
-        self.store.delete_source(user_id=data.user_id, source_id=data.source_id)
         vectors = self.embedder.embed_texts(chunks)
-        ids = [_deterministic_id(data.user_id, data.source_id, i) for i in range(len(chunks))]
-        self.store.upsert(
-            ids=ids,
+        _replace_source_chunks_atomically(
+            store=self.store,
+            user_id=data.user_id,
+            source_id=data.source_id,
+            chunks=chunks,
             vectors=vectors,
-            docs=chunks,
-            sources=[data.source_id] * len(chunks),
-            user_ids=[data.user_id] * len(chunks),
         )
         return IngestOutput(ingested=len(chunks), source=data.source_id)
 

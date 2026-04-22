@@ -86,6 +86,20 @@ class ChromaVectorStore:
                 counts[source] = counts.get(source, 0) + 1
         return [{"source": source, "chunks": chunks} for source, chunks in sorted(counts.items())]
 
+    def count_source_chunks(self, user_id: str, source_id: str) -> int:
+        res = self.collection.get(
+            where=_where_user_and_source_eq(user_id, source_id),
+            include=[],
+        )
+        ids = res.get("ids") or []
+        return len(ids)
+
+    def delete_ids(self, ids: list[str]) -> int:
+        if not ids:
+            return 0
+        self.collection.delete(ids=ids)
+        return len(ids)
+
     def delete_source(self, user_id: str, source_id: str) -> int:
         res = self.collection.get(
             where=_where_user_and_source_eq(user_id, source_id),
