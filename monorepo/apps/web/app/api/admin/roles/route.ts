@@ -1,10 +1,25 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireApiPermission } from "@/lib/auth/requireApiPermission";
+import { conflictError, errorMessage, parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import { createRole, listRoles } from "@/lib/db/roleRepo";
+
+const createRoleSchema = z.object({
+    name: z.string().trim().min(1, "name is required"),
+    slug: z.string().trim().min(1, "slug is required"),
+    description: z.string().optional().default(""),
+    permissionCodes: z.array(z.string()).default([]),
+});
 
 export async function GET() {
     const gate = await requireApiPermission("roles:read");
     if (gate instanceof NextResponse) return gate;
+    const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:read", {
+        limit: 60,
+        windowSec: 60,
+    });
+    if (limited) return limited;
 
     const roles = await listRoles();
     return NextResponse.json({ roles });
@@ -13,38 +28,28 @@ export async function GET() {
 export async function POST(request: Request) {
     const gate = await requireApiPermission("roles:create");
     if (gate instanceof NextResponse) return gate;
-
-    let body: unknown;
-    try {
-        body = await request.json();
-    } catch {
-        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
-    const b = body as { name?: unknown; slug?: unknown; description?: unknown; permissionCodes?: unknown };
-    if (typeof b.name !== "string" || !b.name.trim()) {
-        return NextResponse.json({ error: "name is required" }, { status: 400 });
-    }
-    if (typeof b.slug !== "string" || !b.slug.trim()) {
-        return NextResponse.json({ error: "slug is required" }, { status: 400 });
-    }
-    if (!Array.isArray(b.permissionCodes)) {
-        return NextResponse.json({ error: "permissionCodes must be an array" }, { status: 400 });
-    }
-    const permissionCodes = b.permissionCodes.filter((c): c is string => typeof c === "string");
+    const limited = await requireRateLimitByUser(gate.ctx.userId, "admin:roles:create", {
+        limit: 20,
+        windowSec: 60,
+    });
+    if (limited) return limited;
+    const parsed = await parseJsonBody(request, createRoleSchema);
+    if (!parsed.ok) return parsed.response;
+    const { name, slug, description, permissionCodes } = parsed.data;
 
     try {
         const role = await createRole({
-            name: b.name,
-            slug: b.slug,
-            description: typeof b.description === "string" ? b.description : "",
+            name,
+            slug,
+            description,
             permissionCodes,
         });
         return NextResponse.json({ role }, { status: 201 });
-    } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
+    } catch (error) {
+        const msg = errorMessage(error, "Failed to create role");
         if (msg.includes("duplicate") || msg.includes("E11000")) {
-            return NextResponse.json({ error: "Role slug already exists" }, { status: 409 });
+            return conflictError("Role slug already exists");
         }
-        return NextResponse.json({ error: msg }, { status: 400 });
+        return validationError(msg);
     }
 }

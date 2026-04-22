@@ -65,6 +65,11 @@ vi.mock("@/lib/scraper/crawlJobWorker", () => ({
     runCrawlJob: vi.fn(),
 }));
 
+vi.mock("@/lib/rateLimit/requireRateLimit", () => ({
+    requireRateLimitByUser: vi.fn(),
+    requireRateLimitByIp: vi.fn(),
+}));
+
 import { getSessionCookie } from "@repo/auth/lib/cookies";
 import { verifySessionToken } from "@repo/auth/lib/jwt";
 import { getAuthContextForUserId } from "@/lib/auth/authorization";
@@ -94,7 +99,6 @@ import {
 import {
     appendChatbotExchange,
     clearChatbotMessages,
-    deleteMessagesForSession,
     listChatbotMessages,
 } from "@/lib/db/chatbotMessageRepo";
 import {
@@ -127,8 +131,9 @@ import {
     PATCH as chatbotSessionByIdPatch,
 } from "@/app/api/chatbot/sessions/[sessionId]/route";
 import { DELETE as chatbotMessagesDelete, GET as chatbotMessagesGet, POST as chatbotMessagesPost } from "@/app/api/chatbot/messages/route";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { POST as scraperScrapePost } from "@/app/api/scraper/scrape/route";
+import { requireRateLimitByIp, requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import {
     GET as scraperCrawlJobsGet,
     POST as scraperCrawlJobsPost,
@@ -159,6 +164,8 @@ function goodSession(sub = "user-1"): void {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(requireRateLimitByUser).mockResolvedValue(undefined);
+    vi.mocked(requireRateLimitByIp).mockResolvedValue(undefined);
 });
 
 describe("GET /api/admin/roles", () => {
@@ -268,6 +275,16 @@ describe("GET /api/admin/users", () => {
         const body = (await res.json()) as { users: unknown[] };
         expect(body.users).toHaveLength(1);
     });
+
+    it("429 when the users list rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await adminUsersGet();
+        expect(res.status).toBe(429);
+    });
 });
 
 describe("GET /api/admin/permissions", () => {
@@ -350,6 +367,26 @@ describe("POST /api/admin/roles", () => {
         expect(res.status).toBe(201);
         const body = (await res.json()) as { role: { slug: string } };
         expect(body.role.slug).toBe("custom");
+    });
+
+    it("429 when role creation rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["roles:create"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await adminRolesPost(
+            new Request("http://localhost/api/admin/roles", {
+                method: "POST",
+                body: JSON.stringify({
+                    name: "Custom",
+                    slug: "custom",
+                    permissionCodes: ["dashboard:read"],
+                }),
+                headers: { "content-type": "application/json" },
+            }),
+        );
+        expect(res.status).toBe(429);
     });
 });
 
@@ -990,6 +1027,22 @@ describe("POST /api/chatbot/sessions", () => {
         const body = (await res.json()) as { session: { id: string } };
         expect(body.session.id).toBe(sid);
     });
+
+    it("429 when session creation rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_sessions:create"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await chatbotSessionsPost(
+            new Request("http://localhost", {
+                method: "POST",
+                body: JSON.stringify({ name: "S", documentIds: ["507f1f77bcf86cd799439011"] }),
+                headers: { "content-type": "application/json" },
+            }),
+        );
+        expect(res.status).toBe(429);
+    });
 });
 
 describe("GET /api/chatbot/sessions/[sessionId]", () => {
@@ -1159,6 +1212,26 @@ describe("POST /api/chatbot/messages", () => {
         expect(res.status).toBe(200);
         const body = (await res.json()) as { ok: boolean };
         expect(body.ok).toBe(true);
+    });
+
+    it("429 when message creation rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_messages:create"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await chatbotMessagesPost(
+            new Request("http://localhost", {
+                method: "POST",
+                body: JSON.stringify({
+                    question: "q",
+                    answer: "a",
+                    sessionId: "507f1f77bcf86cd799439099",
+                }),
+                headers: { "content-type": "application/json" },
+            }),
+        );
+        expect(res.status).toBe(429);
     });
 });
 
