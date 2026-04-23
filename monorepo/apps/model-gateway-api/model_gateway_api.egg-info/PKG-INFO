@@ -1,0 +1,41 @@
+Metadata-Version: 2.4
+Name: model-gateway-api
+Version: 0.1.0
+Summary: FastAPI boilerplate for building an AI model gateway
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: fastapi>=0.115.0
+Requires-Dist: uvicorn>=0.30.0
+Requires-Dist: pydantic>=2.8.0
+Requires-Dist: pydantic-settings>=2.3.0
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: openai>=1.40.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.0; extra == "dev"
+Requires-Dist: ruff>=0.7.0; extra == "dev"
+
+# Model Gateway API
+
+Minimal FastAPI boilerplate for learning step by step.
+
+This starter keeps only the essentials so you can build features one by one.
+
+## Quick start
+
+1. Copy .env.example to .env
+2. Run npm run setup
+3. Run npm run dev
+4. Open http://127.0.0.1:8003/docs
+
+## Scripts
+
+- npm run setup: create venv and install dependencies
+- npm run dev: run FastAPI with autoreload
+- npm run test: run tests
+- npm run lint: run Ruff
+- npm run start: production-style run
+
+## Included endpoints
+
+- GET /: welcome message
+- GET /api/health: health check
