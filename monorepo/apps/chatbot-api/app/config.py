@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+MONOREPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -29,7 +34,7 @@ class Settings(BaseSettings):
     #: Read timeout for `/api/generate` (full RAG answer); local models often need several minutes.
     ollama_generate_timeout_seconds: int = 600
 
-    chroma_persist_dir: str = "./chroma_data"
+    chroma_persist_dir: str = str(MONOREPO_ROOT / "chroma_data")
     chroma_collection: str = "chatbot_chunks"
 
     cors_allow_origins: str = "http://localhost:3000,http://127.0.0.1:3000"

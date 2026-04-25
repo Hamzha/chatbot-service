@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
 
+## Environment
+
+Copy [.env.example](.env.example) to `.env.local` and set `USE_CHATBOT_API=true` to route the public widget to chatbot-api. Leave it unset or `false` to use model-gateway-api.
+
 ## Getting Started
 
 First, run the development server:
