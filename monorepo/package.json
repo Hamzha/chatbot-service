@@ -2,7 +2,7 @@
   "name": "monorepo",
   "private": true,
   "scripts": {
-    "setup": "npm install && npm run setup --workspace=webscraper && npm run setup --workspace=chatbot-api",
+    "setup": "npm install && npm run setup --workspace=webscraper && npm run setup --workspace=chatbot-api && npm run setup --workspace=model-gateway-api",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "dev:chatbot-api": "npm run dev --workspace=chatbot-api",

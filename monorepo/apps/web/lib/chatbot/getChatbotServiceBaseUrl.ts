@@ -10,6 +10,10 @@ function isTruthy(value: string | undefined): boolean {
     return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
+export function isChatbotApiEnabled(): boolean {
+    return isTruthy(process.env.USE_CHATBOT_API) || isTruthy(process.env.NEXT_PUBLIC_USE_CHATBOT_API);
+}
+
 function normalizeBaseUrl(raw: string, fallback: string): string {
     const candidate = raw.trim() || fallback;
     try {
@@ -38,6 +42,6 @@ export function getModelGatewayApiBaseUrl(): string {
 }
 
 export function getWidgetChatBackendBaseUrl(): string {
-    const useChatbotApi = isTruthy(process.env.USE_CHATBOT_API) || isTruthy(process.env.NEXT_PUBLIC_USE_CHATBOT_API);
+    const useChatbotApi = isChatbotApiEnabled();
     return useChatbotApi ? getChatbotApiBaseUrl() : getModelGatewayApiBaseUrl();
 }

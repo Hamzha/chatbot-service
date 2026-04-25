@@ -3,7 +3,7 @@ import { z } from "zod";
 import { parseJsonBody } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatSessionById } from "@/lib/db/chatSessionRepo";
-import { getWidgetChatBackendBaseUrl } from "@/lib/chatbot/getChatbotServiceBaseUrl";
+import { getWidgetChatBackendBaseUrl, isChatbotApiEnabled } from "@/lib/chatbot/getChatbotServiceBaseUrl";
 import { validateWidgetRequest } from "@/lib/chatbot/validateWidgetRequest";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 
@@ -38,10 +38,7 @@ async function postWidgetChat(request: Request) {
     return NextResponse.json({ error: "Invalid botId" }, { status: 404 });
   }
 
-  const useChatbotApi = (process.env.USE_CHATBOT_API || process.env.NEXT_PUBLIC_USE_CHATBOT_API || "")
-    .trim()
-    .toLowerCase()
-    .match(/^(1|true|yes|on)$/) !== null;
+  const useChatbotApi = isChatbotApiEnabled();
   const baseUrl = getWidgetChatBackendBaseUrl();
   const sourceIds = chatbot.selectedRagKeys.filter((sourceId) => sourceId.trim().length > 0);
 
