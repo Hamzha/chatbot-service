@@ -4,6 +4,35 @@
 
 This is an AI-powered chatbot platform with authentication, web scraping, and RAG-based PDF Q&A capabilities. The codebase is structured as a monorepo + microservices hybrid.
 
+## Current State (April 2026)
+
+### Web routing toggle (widget + dashboard)
+
+- The web app now supports a backend switch via `USE_CHATBOT_API` (or `NEXT_PUBLIC_USE_CHATBOT_API`).
+- `USE_CHATBOT_API=true` routes chatbot calls to chatbot-api.
+- `USE_CHATBOT_API=false` routes chatbot calls to model-gateway-api.
+- This toggle is implemented for both:
+  - public widget chat route
+  - dashboard chat query flow
+
+### Dashboard contract compatibility
+
+- Dashboard UI expects async query contract: `POST /api/chatbot/query` returns `event_ids`, then UI polls `GET /api/chatbot/jobs/{eventId}`.
+- model-gateway chat is synchronous, so web app now creates synthetic job IDs for model-gateway responses and resolves them through `/api/chatbot/jobs/{eventId}`.
+- This keeps dashboard frontend behavior unchanged while allowing backend switching.
+
+### Shared vector storage
+
+- chatbot-api and model-gateway-api are configured to use the same persistent Chroma directory and collection.
+- Result: both services read/write the same knowledge base embeddings.
+
+### model-gateway embedding model note
+
+- model-gateway uses `OPEN_ROUTER_EMBED_MODEL` for embeddings.
+- Chat generation model is `DEFAULT_MODEL` (currently free-tier model by default).
+- If embedding errors mention missing/paid model, verify the exact model slug exists for the current OpenRouter key.
+- Current requested embedding model for model-gateway env: NVIDIA Llama Nemotron Embed VL 1B V2 (free), via `OPEN_ROUTER_EMBED_MODEL`.
+
 ## Directory Structure
 
 ```
