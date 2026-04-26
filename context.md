@@ -11,6 +11,7 @@ This is an AI-powered chatbot platform with authentication, web scraping, and RA
 - The web app now supports a backend switch via `USE_CHATBOT_API` (or `NEXT_PUBLIC_USE_CHATBOT_API`).
 - `USE_CHATBOT_API=true` routes chatbot calls to chatbot-api.
 - `USE_CHATBOT_API=false` routes chatbot calls to model-gateway-api.
+- Current exception: ingest remains on chatbot-api. `POST /api/chatbot/ingest` still proxies to chatbot-api `/v1/ingest` (Inngest flow not migrated yet).
 - This toggle is implemented for both:
   - public widget chat route
   - dashboard chat query flow
