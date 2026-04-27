@@ -1,4 +1,5 @@
 import { getMongoDbUri } from "@repo/auth/lib/env";
+import { randomUUID } from "crypto";
 import mongoose, { Model, Schema, Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/client";
 import {
@@ -14,6 +15,7 @@ export type ChatSessionRecord = {
     userId: string;
     name: string;
     primaryColor: string;
+    widgetPublicId: string;
     selectedRagKeys: string[];
     createdAt: string;
     updatedAt: string;
@@ -24,6 +26,7 @@ type ChatSessionDoc = {
     userId: Types.ObjectId;
     name: string;
     primaryColor: string;
+    widgetPublicId: string;
     selectedRagKeys: string[];
     createdAt: Date;
     updatedAt: Date;
@@ -50,6 +53,14 @@ const chatSessionSchema = new Schema<ChatSessionDoc>(
             trim: true,
             maxlength: 20,
         },
+        widgetPublicId: {
+            type: String,
+            required: true,
+            unique: true,
+            index: true,
+            trim: true,
+            maxlength: 100,
+        },
         selectedRagKeys: {
             type: [String],
             required: true,
@@ -69,12 +80,27 @@ async function ensureDbConnection(): Promise<void> {
     await connectToDatabase(getMongoDbUri());
 }
 
+function makeWidgetPublicId(): string {
+    return `wgt_${randomUUID().replace(/-/g, "")}`;
+}
+
+async function ensureWidgetPublicId(row: ChatSessionDoc): Promise<ChatSessionDoc> {
+    if (typeof row.widgetPublicId === "string" && row.widgetPublicId.trim().length > 0) {
+        return row;
+    }
+
+    const generated = makeWidgetPublicId();
+    await ChatSessionModel.updateOne({ _id: row._id }, { $set: { widgetPublicId: generated } });
+    return { ...row, widgetPublicId: generated };
+}
+
 function mapSession(r: ChatSessionDoc): ChatSessionRecord {
     return {
         id: r._id.toString(),
         userId: r.userId.toString(),
         name: r.name,
         primaryColor: r.primaryColor,
+        widgetPublicId: r.widgetPublicId,
         selectedRagKeys: [...r.selectedRagKeys],
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
@@ -111,6 +137,7 @@ export async function createChatSession(
         userId: new Types.ObjectId(userId),
         name: trimmedName,
         primaryColor: "#0f766e",
+        widgetPublicId: makeWidgetPublicId(),
         selectedRagKeys,
     });
     return mapSession(doc.toObject() as ChatSessionDoc);
@@ -120,7 +147,8 @@ export async function listChatSessions(userId: string): Promise<ChatSessionRecor
     await ensureDbConnection();
     const uid = new Types.ObjectId(userId);
     const rows = await ChatSessionModel.find({ userId: uid }).sort({ updatedAt: -1 }).lean<ChatSessionDoc[]>();
-    return rows.map(mapSession);
+    const normalizedRows = await Promise.all(rows.map((row) => ensureWidgetPublicId(row)));
+    return normalizedRows.map(mapSession);
 }
 
 export async function getChatSession(userId: string, sessionId: string): Promise<ChatSessionRecord | null> {
@@ -128,14 +156,43 @@ export async function getChatSession(userId: string, sessionId: string): Promise
     const uid = new Types.ObjectId(userId);
     const sid = new Types.ObjectId(sessionId);
     const row = await ChatSessionModel.findOne({ _id: sid, userId: uid }).lean<ChatSessionDoc | null>();
-    return row ? mapSession(row) : null;
+    if (!row) return null;
+    const normalized = await ensureWidgetPublicId(row);
+    return mapSession(normalized);
 }
 
 export async function getChatSessionById(sessionId: string): Promise<ChatSessionRecord | null> {
     await ensureDbConnection();
     const sid = new Types.ObjectId(sessionId);
     const row = await ChatSessionModel.findOne({ _id: sid }).lean<ChatSessionDoc | null>();
-    return row ? mapSession(row) : null;
+    if (!row) return null;
+    const normalized = await ensureWidgetPublicId(row);
+    return mapSession(normalized);
+}
+
+export async function getChatSessionByWidgetId(widgetId: string): Promise<ChatSessionRecord | null> {
+    await ensureDbConnection();
+    const trimmedWidgetId = widgetId.trim();
+    if (!trimmedWidgetId) {
+        return null;
+    }
+
+    const rowByWidgetId = await ChatSessionModel.findOne({ widgetPublicId: trimmedWidgetId }).lean<ChatSessionDoc | null>();
+    if (rowByWidgetId) {
+        const normalized = await ensureWidgetPublicId(rowByWidgetId);
+        return mapSession(normalized);
+    }
+
+    if (!Types.ObjectId.isValid(trimmedWidgetId)) {
+        return null;
+    }
+
+    const rowByLegacySessionId = await ChatSessionModel.findOne({
+        _id: new Types.ObjectId(trimmedWidgetId),
+    }).lean<ChatSessionDoc | null>();
+    if (!rowByLegacySessionId) return null;
+    const normalized = await ensureWidgetPublicId(rowByLegacySessionId);
+    return mapSession(normalized);
 }
 
 export async function ensureChatSessionForUser(
@@ -158,6 +215,7 @@ export async function ensureChatSessionForUser(
         userId: uid,
         name: trimmedName,
         primaryColor: input.primaryColor?.trim() || "#0f766e",
+        widgetPublicId: makeWidgetPublicId(),
         selectedRagKeys: input.selectedRagKeys ?? [],
     });
 

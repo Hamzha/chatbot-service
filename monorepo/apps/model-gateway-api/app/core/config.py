@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = str(MONOREPO_ROOT / "chroma_data")
     chroma_collection: str = "chatbot_chunks"
     max_upload_size_bytes: int = 10 * 1024 * 1024
+    debug_chat_sources: bool = False
 
     model_config = SettingsConfigDict(env_file=str(ENV_FILE), env_file_encoding="utf-8")
 

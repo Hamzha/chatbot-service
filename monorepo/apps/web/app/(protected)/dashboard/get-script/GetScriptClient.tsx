@@ -10,6 +10,7 @@ import { toast } from "@/lib/ui/toast";
 
 type ChatbotRow = {
     id: string;
+    widgetPublicId?: string;
     name: string;
     primaryColor: string;
     selectedRagKeys: string[];
@@ -51,8 +52,9 @@ export function GetScriptClient() {
     const scriptSnippet = useMemo(() => {
         if (!selectedChatbotId) return "";
         const origin = typeof window === "undefined" ? "" : window.location.origin;
-        return `<script src="${origin}/chatbot-widget.js" data-bot-id="${selectedChatbotId}"></script>`;
-    }, [selectedChatbotId]);
+        const widgetId = selectedChatbot?.widgetPublicId || selectedChatbotId;
+        return `<script src="${origin}/chatbot-widget.js" data-bot-id="${widgetId}"></script>`;
+    }, [selectedChatbot, selectedChatbotId]);
 
     async function handleCopy() {
         if (!scriptSnippet) return;
@@ -151,7 +153,7 @@ export function GetScriptClient() {
 
                 <div className="rounded-xl border border-slate-200/60 bg-white/50 p-4 text-sm text-slate-700">
                     <p className="font-semibold text-slate-900">Selected chatbot</p>
-                    <p className="mt-1 break-words">{selectedChatbot?.name ?? "None"}</p>
+                    <p className="mt-1 wrap-break-word">{selectedChatbot?.name ?? "None"}</p>
                 </div>
 
                 <ol className="space-y-2 text-sm leading-6 text-slate-700">

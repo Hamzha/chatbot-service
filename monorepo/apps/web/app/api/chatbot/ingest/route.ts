@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
-import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
+import {
+  getChatbotApiBaseUrl,
+  getModelGatewayApiBaseUrl,
+  isChatbotApiEnabled,
+} from "@/lib/chatbot/getChatbotServiceBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { createPendingChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
+import { createSyntheticIngestJob } from "@/lib/chatbot/syntheticIngestJobs";
 
 async function postIngest(request: Request) {
   const auth = await requireUserIdWithPermission("chatbot_documents:create");
@@ -31,35 +36,64 @@ async function postIngest(request: Request) {
   fd.append("file", file);
 
   try {
-    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/ingest`, {
-      method: "POST",
-      headers: {
-        "x-user-id": userId,
-        "x-rag-source-id": pending.ragSourceKey,
-      },
-      body: fd,
-    });
+    const useChatbotApi = isChatbotApiEnabled();
+    const res = useChatbotApi
+      ? await fetch(`${getChatbotApiBaseUrl()}/v1/ingest`, {
+        method: "POST",
+        headers: {
+          "x-user-id": userId,
+          "x-rag-source-id": pending.ragSourceKey,
+        },
+        body: fd,
+      })
+      : await fetch(`${getModelGatewayApiBaseUrl()}/api/rag/ingest`, {
+        method: "POST",
+        body: (() => {
+          const modelGatewayForm = new FormData();
+          modelGatewayForm.append("file", file);
+          modelGatewayForm.append("user_id", userId);
+          modelGatewayForm.append("source_id", pending.ragSourceKey);
+          return modelGatewayForm;
+        })(),
+      });
+
     const text = await res.text();
     if (!res.ok) {
       return proxyChatbotResponse(res, text);
     }
-    let parsed: { event_ids?: string[] };
+
     try {
-      parsed = JSON.parse(text) as { event_ids?: string[] };
+      if (useChatbotApi) {
+        const parsed = JSON.parse(text) as { event_ids?: string[] };
+        return NextResponse.json({
+          event_ids: parsed.event_ids,
+          document: {
+            id: pending.id,
+            source: pending.source,
+            ragSourceKey: pending.ragSourceKey,
+          },
+        });
+      }
+
+      const parsed = JSON.parse(text) as { ingested?: number; source?: string };
+      const syntheticEventId = createSyntheticIngestJob({
+        ingested: typeof parsed.ingested === "number" ? parsed.ingested : 0,
+        source: parsed.source || pending.ragSourceKey,
+      });
+      return NextResponse.json({
+        event_ids: [syntheticEventId],
+        document: {
+          id: pending.id,
+          source: pending.source,
+          ragSourceKey: pending.ragSourceKey,
+        },
+      });
     } catch {
       return NextResponse.json(
         { error: "Invalid JSON from chatbot service", detail: text.slice(0, 200) },
         { status: 502 },
       );
     }
-    return NextResponse.json({
-      event_ids: parsed.event_ids,
-      document: {
-        id: pending.id,
-        source: pending.source,
-        ragSourceKey: pending.ragSourceKey,
-      },
-    });
   } catch (e) {
     return NextResponse.json(
       { error: "Cannot reach chatbot service", detail: String(e) },

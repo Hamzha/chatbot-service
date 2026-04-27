@@ -5,6 +5,7 @@ import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { getSyntheticQueryJob, isSyntheticQueryJobId } from "@/lib/chatbot/syntheticQueryJobs";
+import { getSyntheticIngestJob, isSyntheticIngestJobId } from "@/lib/chatbot/syntheticIngestJobs";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
 async function getJobStatus(
@@ -35,6 +36,20 @@ async function getJobStatus(
       output: {
         answer: job.answer,
         sources: job.sources,
+      },
+    });
+  }
+
+  if (isSyntheticIngestJobId(normalizedEventId)) {
+    const job = getSyntheticIngestJob(normalizedEventId);
+    if (!job) {
+      return NextResponse.json({ error: "Job not found or expired" }, { status: 404 });
+    }
+    return NextResponse.json({
+      status: "Success",
+      output: {
+        ingested: job.ingested,
+        source: job.source,
       },
     });
   }

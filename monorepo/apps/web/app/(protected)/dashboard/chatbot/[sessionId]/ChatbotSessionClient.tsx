@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-
+import Script from "next/script";
 import { ChatComposer } from "@/components/dashboard/chat/ChatComposer";
 import { ChatHeader } from "@/components/dashboard/chat/ChatHeader";
 import { ChatMessages } from "@/components/dashboard/chat/ChatMessages";
@@ -312,6 +312,7 @@ export function ChatbotSessionClient() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5 lg:h-[calc(100dvh-5rem)]">
+      <Script src="http://localhost:3000/chatbot-widget.js" data-bot-id="wgt_43f00eea9320485097dd597e97781a75"></Script>
       <ChatHeader
         session={session}
         selectedDocs={selectedDocsForUi}

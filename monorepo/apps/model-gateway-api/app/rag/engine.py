@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-
 from app.providers.openrouter_provider import OpenRouterProvider
 from app.schemas.rag import RagIngestResponse, RagQueryRequest, RagQueryResponse, RagTextIngestRequest
 
@@ -83,12 +82,28 @@ class QueryRagUseCase:
         self.store = store
 
     async def execute(self, data: RagQueryRequest) -> RagQueryResponse:
+        print(
+            "[rag-debug] query incoming",
+            {
+                "user_id": data.user_id,
+                "source_ids": data.source_ids or [],
+                "top_k": data.top_k,
+            },
+        )
+
         question_vector = (await self.provider.embed_texts([data.question]))[0]
         contexts = self.store.search(
             question_vector,
             top_k=data.top_k,
             user_id=data.user_id,
             source_ids=data.source_ids,
+        )
+        print(
+            "[rag-debug] query retrieved",
+            {
+                "num_contexts": len(contexts),
+                "sources": sorted({c.source for c in contexts}),
+            },
         )
         context_block = "\n\n".join(f"- {c.text}" for c in contexts)
         prior = ""

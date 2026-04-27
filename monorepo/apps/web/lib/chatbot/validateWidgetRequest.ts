@@ -1,4 +1,4 @@
-import { getChatSessionById } from "@/lib/db/chatSessionRepo";
+import { getChatSessionByWidgetId } from "@/lib/db/chatSessionRepo";
 
 const MAX_MESSAGE_LENGTH = 500;
 
@@ -9,7 +9,7 @@ interface WidgetRequestInput {
 
 interface ValidationSuccess {
   valid: true;
-  botId: string;
+  widgetId: string;
   message: string;
 }
 
@@ -42,10 +42,10 @@ export async function validateWidgetRequest(
     };
   }
 
-  const chatbot = await getChatSessionById(botId.trim());
+  const chatbot = await getChatSessionByWidgetId(botId.trim());
   if (!chatbot) {
     return { valid: false, error: "Invalid botId", status: 404 };
   }
 
-  return { valid: true, botId: botId.trim(), message: message.trim() };
+  return { valid: true, widgetId: botId.trim(), message: message.trim() };
 }

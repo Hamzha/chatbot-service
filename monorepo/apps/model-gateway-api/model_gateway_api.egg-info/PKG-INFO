@@ -30,6 +30,14 @@ This starter keeps only the essentials so you can build features one by one.
 3. Run npm run dev
 4. Open http://127.0.0.1:8003/docs
 
+## Environment notes
+
+- `DEFAULT_MODEL`: chat/completion model (free models are enforced by service logic)
+- `OPEN_ROUTER_EMBED_MODEL`: embedding model used by RAG ingest/query
+- If you get provider embedding errors, verify the embedding model slug exists for your OpenRouter key.
+
+Current project usage expects a free embedding model configured in `.env` via `OPEN_ROUTER_EMBED_MODEL`.
+
 ## Scripts
 
 - npm run setup: create venv and install dependencies

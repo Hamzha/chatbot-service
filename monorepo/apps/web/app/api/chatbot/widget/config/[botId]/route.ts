@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { notFoundError, validationError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
-import { getChatSessionById } from "@/lib/db/chatSessionRepo";
+import { getChatSessionByWidgetId } from "@/lib/db/chatSessionRepo";
 
 /** Public endpoint — widget fetches its color config using the botId (no auth). */
 async function getPublicWidgetConfig(
@@ -20,7 +20,7 @@ async function getPublicWidgetConfig(
     return validationError("Missing botId");
   }
 
-  const chatbot = await getChatSessionById(botId.trim());
+  const chatbot = await getChatSessionByWidgetId(botId.trim());
   if (!chatbot) {
     return notFoundError("Invalid botId");
   }
