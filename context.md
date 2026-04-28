@@ -34,6 +34,29 @@ This is an AI-powered chatbot platform with authentication, web scraping, and RA
 - If embedding errors mention missing/paid model, verify the exact model slug exists for the current OpenRouter key.
 - Current requested embedding model for model-gateway env: NVIDIA Llama Nemotron Embed VL 1B V2 (free), via `OPEN_ROUTER_EMBED_MODEL`.
 
+### OpenRouter API key setup (model-gateway-api)
+
+- `OPEN_ROUTER_API_KEY` is required for model-gateway chat + embedding calls.
+- Create/get key from OpenRouter dashboard:
+  - Sign in at [https://openrouter.ai](https://openrouter.ai)
+  - Open **Keys** page: [https://openrouter.ai/keys](https://openrouter.ai/keys)
+  - Create a new key and copy it.
+- Add it to `monorepo/apps/model-gateway-api/.env`:
+  - `OPEN_ROUTER_API_KEY=sk-or-v1-...`
+- Keep it only in local/private env files. Do not commit real keys.
+
+### Chroma path mismatch bug we hit
+
+- Symptom we observed:
+  - same `source_id` returned contexts in one backend, but `num_contexts: 0` in the other.
+- Root cause:
+  - `chatbot-api` and `model-gateway-api` were pointing to different `CHROMA_PERSIST_DIR` values.
+- Required fix:
+  - set both services to the same shared directory, for example `../../chroma_data` in each app env.
+  - keep `CHROMA_COLLECTION` aligned as well (currently `chatbot_chunks`).
+- Why this matters:
+  - if paths differ, each service reads a different vector store and retrieval results diverge.
+
 ## Directory Structure
 
 ```
@@ -553,14 +576,41 @@ cp .env.example .env.local   # fill in values
 npx next dev --port 3002
 ```
 
-### Chatbot Service
+### Chatbot API (current, monorepo)
 
 ```bash
-cd microservices/chatbot-service
-# Start Ollama, then:
-.\scripts\run-api.bat         # Terminal 1
-.\scripts\run-inngest.bat     # Terminal 2
-.\.venv\Scripts\python.exe -m streamlit run streamlit_app.py --server.port 8501  # Terminal 3
+cd monorepo/apps/chatbot-api
+# first time only
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+
+# set envs in .env / .env.local (important)
+# CHROMA_PERSIST_DIR should match model-gateway-api CHROMA_PERSIST_DIR
+
+# run API (port 8001 by default)
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+```
+
+### Inngest Dev Server (for chatbot-api query/ingest jobs)
+
+```bash
+cd monorepo
+npm run dev:chatbot-inngest
+```
+
+### Model Gateway API (current, monorepo)
+
+```bash
+cd monorepo/apps/model-gateway-api
+# first time only
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+
+# set envs in .env
+# CHROMA_PERSIST_DIR should match chatbot-api CHROMA_PERSIST_DIR
+
+# run API (port 8003 by default)
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8003
 ```
 
 ### Web Scraper (from monorepo)
