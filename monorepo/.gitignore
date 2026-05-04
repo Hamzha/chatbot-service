@@ -36,3 +36,9 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Runtime vector DB artifacts
+chroma_data/
+
+# Generated Python packaging metadata
+apps/model-gateway-api/*.egg-info/
