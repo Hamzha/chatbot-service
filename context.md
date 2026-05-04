@@ -56,6 +56,9 @@ This is an AI-powered chatbot platform with authentication, web scraping, and RA
   - keep `CHROMA_COLLECTION` aligned as well (currently `chatbot_chunks`).
 - Why this matters:
   - if paths differ, each service reads a different vector store and retrieval results diverge.
+- Current status (2026-05-04):
+  - the two services still do **not** point to the same DB. `chatbot-api/.env.example` defaults to `./chroma_data` (resolves to `monorepo/apps/chatbot-api/chroma_data`) while `model-gateway-api/.env.example` defaults to `../../chroma_data` (resolves to `monorepo/chroma_data`).
+  - observed effect: when we change the DB URL on the chatbot-api side, we stop getting a response — because chatbot-api ends up reading from a vector store that model-gateway didn't write to (or vice versa), so retrieval comes back empty / the call fails.
 
 ## Directory Structure
 
