@@ -2,13 +2,24 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Script from "next/script";
 import { ChatComposer } from "@/components/dashboard/chat/ChatComposer";
 import { ChatHeader } from "@/components/dashboard/chat/ChatHeader";
 import { ChatMessages } from "@/components/dashboard/chat/ChatMessages";
 import { ChatRightPanel } from "@/components/dashboard/chat/ChatRightPanel";
-import type { ChatMsg, ChatSessionRow, SelectedDocForUi } from "@/components/dashboard/chat/types";
+import type {
+  ChatMsg,
+  ChatSessionRow,
+  SelectedDocForUi,
+} from "@/components/dashboard/chat/types";
 import {
   assertOkJson,
   formatApiErrorMessage,
@@ -50,13 +61,16 @@ async function pollJob(eventId: string): Promise<JobStatus> {
 
 export function ChatbotSessionClient() {
   const params = useParams();
-  const sessionId = typeof params.sessionId === "string" ? params.sessionId : "";
+  const sessionId =
+    typeof params.sessionId === "string" ? params.sessionId : "";
 
   const [session, setSession] = useState<ChatSessionRow | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
   const [labelByRag, setLabelByRag] = useState<Record<string, string>>({});
-  const [selectedDocumentsFromApi, setSelectedDocumentsFromApi] = useState<SessionSelectedDocRow[]>([]);
+  const [selectedDocumentsFromApi, setSelectedDocumentsFromApi] = useState<
+    SessionSelectedDocRow[]
+  >([]);
 
   const [question, setQuestion] = useState("");
   const [status, setStatus] = useState("idle");
@@ -110,7 +124,9 @@ export function ChatbotSessionClient() {
     if (!sessionId) return;
     setError(null);
     try {
-      const res = await fetch(`/api/chatbot/messages?sessionId=${encodeURIComponent(sessionId)}`);
+      const res = await fetch(
+        `/api/chatbot/messages?sessionId=${encodeURIComponent(sessionId)}`,
+      );
       const data = await parseJsonResponse<{ messages?: ChatMsg[] }>(res);
       if (!res.ok) {
         setError(formatApiErrorMessage(data, res.status));
@@ -182,7 +198,11 @@ export function ChatbotSessionClient() {
         const res = await fetch("/api/chatbot/query", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ question: trimmedQuestion, top_k: 4, sessionId }),
+          body: JSON.stringify({
+            question: trimmedQuestion,
+            top_k: 4,
+            sessionId,
+          }),
         });
         const body = await parseJsonResponse<{ event_ids?: string[] }>(res);
         assertOkJson(res, body);
@@ -208,7 +228,9 @@ export function ChatbotSessionClient() {
             }),
           });
           if (!saveRes.ok) {
-            const errData = await parseJsonResponse<unknown>(saveRes).catch(() => null);
+            const errData = await parseJsonResponse<unknown>(saveRes).catch(
+              () => null,
+            );
             const msg = errData
               ? formatApiErrorMessage(errData, saveRes.status)
               : "Could not save conversation.";
@@ -245,9 +267,12 @@ export function ChatbotSessionClient() {
     setStatus("clearing");
     const loadingId = toast.loading("Clearing conversation…");
     try {
-      const res = await fetch(`/api/chatbot/messages?sessionId=${encodeURIComponent(sessionId)}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `/api/chatbot/messages?sessionId=${encodeURIComponent(sessionId)}`,
+        {
+          method: "DELETE",
+        },
+      );
       const data = await parseJsonResponse<unknown>(res);
       if (!res.ok) {
         const msg = formatApiErrorMessage(data, res.status);
@@ -312,7 +337,10 @@ export function ChatbotSessionClient() {
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5 lg:h-[calc(100dvh-5rem)]">
-      <Script src="http://localhost:3000/chatbot-widget.js" data-bot-id="wgt_43f00eea9320485097dd597e97781a75"></Script>
+      <Script
+        src="http://localhost:3000/chatbot-widget.js"
+        data-bot-id="wgt_5bd28d2a76be47519f9895ae2d76fa25"
+      ></Script>
       <ChatHeader
         session={session}
         selectedDocs={selectedDocsForUi}
@@ -333,7 +361,9 @@ export function ChatbotSessionClient() {
           <ul className="mt-2 space-y-1.5 text-sm text-slate-900">
             {selectedDocsForUi.map((d) => (
               <li key={d.ragSourceKey} className="flex items-center gap-2">
-                <span className="min-w-0 truncate font-medium">{d.displayName}</span>
+                <span className="min-w-0 truncate font-medium">
+                  {d.displayName}
+                </span>
                 {!d.inLibrary && (
                   <span className="shrink-0 text-[10px] font-semibold uppercase text-amber-800">
                     removed
@@ -385,9 +415,16 @@ export function ChatbotSessionClient() {
 
       {/* Mobile error display (desktop error lives inside right panel) */}
       {error && (
-        <div className="glass rounded-2xl border-rose-300/60 p-4 lg:hidden" role="alert">
-          <p className="text-xs font-semibold uppercase tracking-wide text-rose-800">Error</p>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-rose-900">{error}</p>
+        <div
+          className="glass rounded-2xl border-rose-300/60 p-4 lg:hidden"
+          role="alert"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-rose-800">
+            Error
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-rose-900">
+            {error}
+          </p>
         </div>
       )}
     </div>

@@ -79,6 +79,16 @@ const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode>
             />
         </svg>
     ),
+    "nav.dashboard.admin.overview": (
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 17v-6a2 2 0 012-2h2a2 2 0 012 2v6m-9 4h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+        </svg>
+    ),
 };
 
 const navItems = DASHBOARD_SIDEBAR_NAV.map((row) => ({

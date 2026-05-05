@@ -45,4 +45,10 @@ export const DASHBOARD_SIDEBAR_NAV = [
         href: "/dashboard/admin/users",
         permission: "users:read",
     },
+    {
+        id: "nav.dashboard.admin.overview",
+        label: "Platform overview",
+        href: "/dashboard/admin/overview",
+        permission: "admin_overview:read",
+    },
 ] as const;

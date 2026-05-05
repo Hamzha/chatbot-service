@@ -205,6 +205,18 @@ export const RBAC_CORE_ENFORCEMENT_POINTS = [
         surfaces: ["page"],
         feature: "UI — Roles & permissions admin page",
     },
+    {
+        id: "page.dashboard.admin.overview",
+        permission: "admin_overview:read",
+        surfaces: ["page"],
+        feature: "UI — Platform overview admin page",
+    },
+    {
+        id: "api.admin.overview.GET",
+        permission: "admin_overview:read",
+        surfaces: ["api"],
+        feature: "Admin — cross-tenant platform overview",
+    },
 ] as const satisfies readonly RbacEnforcementPoint[];
 
 const RBAC_NAV_ENFORCEMENT_POINTS: RbacEnforcementPoint[] = DASHBOARD_SIDEBAR_NAV.map((row) => ({
