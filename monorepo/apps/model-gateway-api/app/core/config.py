@@ -5,7 +5,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MONOREPO_ROOT = Path(__file__).resolve().parents[4]
-ENV_FILE = PROJECT_ROOT / ".env"
+ENV_FILES = (
+    PROJECT_ROOT / ".env.local",
+)
 
 
 class Settings(BaseSettings):
@@ -21,7 +23,10 @@ class Settings(BaseSettings):
     chroma_collection: str = "chatbot_chunks"
     max_upload_size_bytes: int = 10 * 1024 * 1024
 
-    model_config = SettingsConfigDict(env_file=str(ENV_FILE), env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=tuple(str(path) for path in ENV_FILES),
+        env_file_encoding="utf-8",
+    )
 
 
 settings = Settings()
