@@ -20,7 +20,7 @@ This app exposes internal product APIs for the frontend.
 - `GET /api/chatbot/jobs/[eventId]` - polls job status.
 - `GET|POST /api/chatbot/sessions` and `PATCH|DELETE /api/chatbot/sessions/[sessionId]`.
 - `GET|POST /api/chatbot/sources` and `DELETE /api/chatbot/sources/[sourceId]`.
-- `GET|POST|DELETE /api/chatbot/documents` endpoints.
+- `GET|POST|DELETE /api/chatbot/documents` endpoints — **GET** reads Mongo and may backfill from **`chatbot-api` `/v1/sources`** only for **non-URL** Chroma sources when the library is empty; **DELETE** removes vectors via **`chatbot-api`** then deletes Mongo rows.
 - Widget endpoints:
   - `GET|POST /api/chatbot/widget/config`
   - `POST /api/chatbot/widget/chat`

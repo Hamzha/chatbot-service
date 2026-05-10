@@ -109,7 +109,11 @@ inngest.fast_api.serve(app, inngest_client, [ingest_pdf_fn, query_fn])
 
 @app.get("/v1/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "provider": settings.model_provider}
+    return {
+        "status": "ok",
+        "provider": settings.model_provider,
+        "embedding_backend": settings.effective_embedding_backend,
+    }
 
 
 @app.post("/v1/ingest")

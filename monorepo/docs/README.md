@@ -14,13 +14,16 @@ This folder is the central documentation hub for all applications in this reposi
 ```mermaid
 flowchart LR
     U[User Browser] --> W[web :3000]
-    W -->|chat queries| C[chatbot-api :8001]
-    W -->|chat fallback| M[model-gateway-api :8003]
+    W -->|chat when USE_CHATBOT_API=true| C[chatbot-api :8001]
+    W -->|chat when USE_CHATBOT_API=false| M[model-gateway-api :8003]
+    W -->|ingest / KB vectors / scrape text| C
     W -->|scrape/crawl| S[webscraper :8000]
     C --> I[Inngest]
     C --> V[(Chroma Vector Store)]
     M --> V
 ```
+
+Optional **`monorepo/.env.shared`** (from `.env.shared.example`) supplies shared defaults for **`chatbot-api`** and **`model-gateway-api`** (embedding backend, Chroma collection, etc.); each app’s `.env` / `.env.local` overrides.
 
 ## Conventions
 

@@ -22,9 +22,9 @@ This is an AI-powered chatbot platform with:
 
 ### Backend routing toggle in web
 
-- `USE_CHATBOT_API=true` routes chatbot calls to `chatbot-api`.
-- `USE_CHATBOT_API=false` routes chatbot calls to `model-gateway-api`.
-- `POST /api/chatbot/ingest` remains on `chatbot-api` (Inngest flow).
+- `USE_CHATBOT_API=true` routes **dashboard chat queries** (`POST /api/chatbot/query`) and the **public widget** chat path to `chatbot-api`.
+- `USE_CHATBOT_API=false` routes those flows to **`model-gateway-api`** (sync response + synthetic job ids for the same UI contract).
+- **Ingest, document library, and vector deletes** always use the URL from **`CHATBOT_API_URL`** (or **`NEXT_PUBLIC_CHATBOT_API_BASE_URL`**) — they talk to **`chatbot-api`** regardless of `USE_CHATBOT_API`, so scraped text and PDF ingest land in the same Chroma instance the web app lists and deletes.
 
 ### Dashboard compatibility
 
@@ -33,7 +33,14 @@ This is an AI-powered chatbot platform with:
 
 ### Shared vector storage
 
-- `chatbot-api` and `model-gateway-api` use the same Chroma persistence location and collection by default.
+- `chatbot-api` and `model-gateway-api` use the same Chroma persistence location and collection by default (see `monorepo/chroma_data` and `CHROMA_COLLECTION` in `.env.shared` / per-app env).
+- **Embedding dimensions must match** whatever wrote the vectors: if you change embedding model or backend, re-ingest or clear Chroma.
+
+### Shared Python environment (`monorepo/.env.shared`)
+
+- Copy `monorepo/.env.shared.example` to **`monorepo/.env.shared`** (the real file is gitignored).
+- **`chatbot-api`** and **`model-gateway-api`** load it **before** each app’s own `.env` / `.env.local`, so shared defaults live in one place; app-specific files **override** on duplicate keys.
+- Typical contents: **`EMBEDDING_BACKEND`** (and related OpenRouter / Ollama / OpenAI vars), optional **`CHROMA_COLLECTION`** / **`CHROMA_PERSIST_DIR`**, optional shared **`OPEN_ROUTER_*`** defaults. Keep secrets in `apps/*/.env.local` where possible.
 
 ## Repository Structure
 
@@ -94,6 +101,8 @@ flowchart TD
 
     W -->|scrape/crawl| S[webscraper :8000]
 ```
+
+Paths not shown as branches off **`USE_CHATBOT_API`**: PDF ingest, scrape/crawl **`/v1/ingest-text`**, and document/source HTTP calls from **`web`** always target **`CHATBOT_API_URL`** (same host as the diagram’s **`chatbot-api`** box when local).
 
 ## Setup
 
@@ -222,8 +231,9 @@ Responsibilities:
 
 Key flows:
 
-- Query flow: `web -> chatbot-api` (async) or `web -> model-gateway-api` (sync + synthetic job)
-- Scraper flow: `web -> webscraper -> web persistence -> chatbot ingest`
+- Query flow: `web -> chatbot-api` (async) or `web -> model-gateway-api` (sync + synthetic job), controlled by `USE_CHATBOT_API`.
+- Scraper flow: `web -> webscraper -> Mongo (crawl jobs) -> chatbot-api /v1/ingest-text` + Mongo **`ChatbotDocument`** rows (site rows aggregate many pages).
+- Knowledge base list (`GET /api/chatbot/documents`): primarily **Mongo**; if Mongo has **no** rows for the user, the handler **backfills from `chatbot-api` `/v1/sources`** using **non-URL** source ids only (so orphaned crawl chunks do not become dozens of fake library rows). Deletes remove vectors in **chatbot-api** then Mongo rows (including legacy per-page keys).
 
 Important API groups:
 
@@ -299,6 +309,13 @@ Shared UI component package with common form and UI primitives.
 
 ## Environment Variables
 
+### Shared (`monorepo/.env.shared`)
+
+Optional file loaded first by **`chatbot-api`** and **`model-gateway-api`**. See **`.env.shared.example`** for the full template. Highlights:
+
+- **`EMBEDDING_BACKEND`** — where RAG embeddings are built. **`chatbot-api`**: `ollama` | `openrouter` | `openai`, or leave unset to mirror **`MODEL_PROVIDER`** (`openai` | `ollama` only). **`model-gateway-api`**: `openrouter` | `ollama` for vectors only (chat completions always use OpenRouter).
+- **`CHROMA_COLLECTION`** / **`CHROMA_PERSIST_DIR`** — align both Python apps with the same Chroma directory/collection when both touch RAG.
+
 ### web (`apps/web/.env.local`)
 
 Core:
@@ -311,31 +328,37 @@ Core:
 - `RESEND_API_KEY`
 - `EMAIL_FROM`
 - `NEXT_PUBLIC_APP_URL`
-- `USE_CHATBOT_API`
+- `USE_CHATBOT_API` (and optional `NEXT_PUBLIC_USE_CHATBOT_API` for widget build-time defaults)
 
 Integrations:
 
-- `CHATBOT_API_URL` (default `http://127.0.0.1:8001`)
-- `MODEL_GATEWAY_API_URL` (default `http://127.0.0.1:8003`)
+- **`CHATBOT_API_URL`** (server routes; default `http://127.0.0.1:8001`) — **ingest, document CRUD, vector delete, scrape text ingest** always use this host.
+- **`NEXT_PUBLIC_CHATBOT_API_BASE_URL`** — optional client-visible fallback; server prefers `CHATBOT_API_URL` when set.
+- `MODEL_GATEWAY_API_URL` (default `http://127.0.0.1:8003`) — used when `USE_CHATBOT_API=false` for **query** (and related gateway paths).
 - `SCRAPER_API_URL` (default `http://localhost:8000`)
 
-### chatbot-api (`apps/chatbot-api/.env`)
+### chatbot-api (`apps/chatbot-api/.env` + optional `monorepo/.env.shared`)
 
 - `APP_ENV`, `APP_HOST`, `APP_PORT`, `LOG_LEVEL`
-- `MODEL_PROVIDER` (`openai` | `ollama`)
-- `OPENAI_API_KEY`, `OPENAI_CHAT_MODEL`, `OPENAI_EMBED_MODEL`
-- `OLLAMA_BASE_URL`, `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBED_MODEL`
+- `MODEL_PROVIDER` (`openai` | `ollama`) — chat / completion runtime when not using OpenRouter here.
+- **`EMBEDDING_BACKEND`** — optional override for where embeddings are computed; if unset, follows `MODEL_PROVIDER` (see `apps/chatbot-api/.env.example`).
+- `OPENAI_API_KEY`, `OPENAI_CHAT_MODEL`, `EMBEDDING_MODEL` (legacy fallback: `OPENAI_EMBED_MODEL`)
+- OpenRouter embed path when configured: `OPEN_ROUTER_API_KEY`, `OPENROUTER_EMBEDDING_MODEL`, `OPEN_ROUTER_BASE_URL`
+- `OLLAMA_BASE_URL`, `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBED_MODEL` / `OLLAMA_EMBEDDING_MODEL`, `EMBEDDING_MODEL` (see example for precedence)
 - `OLLAMA_TIMEOUT_SECONDS`, `OLLAMA_GENERATE_TIMEOUT_SECONDS`
-- `CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION`
+- `CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION` (defaults resolve to monorepo `chroma_data` when relative)
 - `AUTH_JWT_SECRET`, `SERVICE_API_KEY`
 - `INNGEST_APP_ID`, `INNGEST_API_BASE_URL`, `INNGEST_EVENT_API_BASE_URL`
 
-### model-gateway-api (`apps/model-gateway-api/.env`)
+### model-gateway-api (`apps/model-gateway-api/.env.local` + optional `monorepo/.env.shared`)
 
 - `APP_NAME`, `APP_ENV`, `APP_VERSION`, `API_PREFIX`
 - `OPEN_ROUTER_API_KEY`
 - `DEFAULT_MODEL`
-- `OPEN_ROUTER_EMBED_MODEL`
+- **`EMBEDDING_BACKEND`** (`openrouter` | `ollama`) — RAG embeddings only
+- **`EMBEDDING_MODEL`** — OpenRouter embedding slug when backend is `openrouter`
+- **`OLLAMA_BASE_URL`**, **`OLLAMA_EMBEDDING_MODEL`** — when backend is `ollama`
+- `CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION`, `MAX_UPLOAD_SIZE_BYTES`
 
 ### webscraper (`apps/webscraper/.env`)
 

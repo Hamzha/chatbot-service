@@ -11,7 +11,17 @@ import {
     upsertChatbotDocument,
 } from "@/lib/db/chatbotDocumentRepo";
 
-/** When Mongo has no rows yet, copy sources from the chatbot (Chroma) into Mongo once. */
+/**
+ * Crawl/scrape ingestion uses each page URL as the Chroma `source` id while Mongo keeps a single
+ * site row. If Mongo is empty (e.g. after deleting that row) but orphaned vectors remain, we must
+ * NOT backfill those URL sources — we would create one library row per page and they would
+ * reappear on every refresh.
+ */
+function isWebScrapeVectorSourceId(source: string): boolean {
+    return /^https?:\/\//i.test(source.trim());
+}
+
+/** When Mongo has no rows yet, copy non-URL sources from the chatbot (Chroma) into Mongo once. */
 async function backfillFromChatbotIfEmpty(userId: string): Promise<void> {
     try {
         const res = await fetch(`${getChatbotApiBaseUrl()}/v1/sources`, {
@@ -23,7 +33,9 @@ async function backfillFromChatbotIfEmpty(userId: string): Promise<void> {
         const data = JSON.parse(text) as { sources?: { source: string; chunks: number }[] };
         const sources = data.sources ?? [];
         for (const row of sources) {
-            await upsertChatbotDocument(userId, row.source, row.chunks);
+            const src = typeof row.source === "string" ? row.source.trim() : "";
+            if (!src || isWebScrapeVectorSourceId(src)) continue;
+            await upsertChatbotDocument(userId, src, row.chunks);
         }
     } catch {
         // Chatbot down or invalid JSON — leave Mongo as-is

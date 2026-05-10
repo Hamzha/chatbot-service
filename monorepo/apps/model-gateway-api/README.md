@@ -14,10 +14,10 @@ This starter keeps only the essentials so you can build features one by one.
 ## Environment notes
 
 - `DEFAULT_MODEL`: chat/completion model (free models are enforced by service logic)
-- `OPEN_ROUTER_EMBED_MODEL`: embedding model used by RAG ingest/query
+- `EMBEDDING_MODEL`: embedding model used by RAG ingest/query
 - If you get provider embedding errors, verify the embedding model slug exists for your OpenRouter key.
 
-Current project usage expects a free embedding model configured in `.env` via `OPEN_ROUTER_EMBED_MODEL`.
+Current project usage expects a free embedding model configured in `.env` via `EMBEDDING_MODEL`.
 
 ## Scripts
 

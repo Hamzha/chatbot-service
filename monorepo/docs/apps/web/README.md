@@ -22,9 +22,9 @@
 
 ## Key Integrations
 
-- `chatbot-api` for async ingest/query flow.
-- `model-gateway-api` for direct/fallback chat flow when chatbot API is disabled.
-- `webscraper` for scrape and crawl operations.
+- **`chatbot-api`** — always the target for **ingest**, **scrape/crawl text indexing**, **source list/delete** used by document APIs (`CHATBOT_API_URL` / `NEXT_PUBLIC_CHATBOT_API_BASE_URL`). Dashboard **chat** also uses it when **`USE_CHATBOT_API=true`**.
+- **`model-gateway-api`** — dashboard **chat** when **`USE_CHATBOT_API=false`** (sync + synthetic jobs).
+- **`webscraper`** — scrape and crawl HTTP service; results are persisted and forwarded to **`chatbot-api`** for embeddings.
 
 ## Related Docs
 

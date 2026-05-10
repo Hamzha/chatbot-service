@@ -19,6 +19,8 @@
 - Framework: FastAPI
 - Language: Python
 
+Optional **`monorepo/.env.shared`** supplies shared embedding and Chroma defaults; see [Operations](./operations.md).
+
 ## Related Docs
 
 - [Architecture](./architecture.md)

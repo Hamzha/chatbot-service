@@ -344,6 +344,26 @@ export async function deleteChatbotDocumentById(userId: string, documentId: stri
     return row ? mapDoc(row) : null;
 }
 
+/**
+ * Remove every `ChatbotDocument` whose `ragSourceKey` is in `ragKeys` (same user).
+ * Used after purging Chroma so legacy **per-page** Mongo rows (same key as a page URL)
+ * disappear when the user deletes the site aggregator row.
+ */
+export async function deleteChatbotDocumentsByRagSourceKeys(
+    userId: string,
+    ragKeys: string[],
+): Promise<number> {
+    await ensureDbConnection();
+    const uniq = [...new Set(ragKeys.map((k) => k.trim()).filter((k) => k.length > 0))];
+    if (uniq.length === 0) return 0;
+    const uid = new Types.ObjectId(userId);
+    const res = await ChatbotDocumentModel.deleteMany({
+        userId: uid,
+        ragSourceKey: { $in: uniq },
+    });
+    return res.deletedCount ?? 0;
+}
+
 /** @deprecated Use deleteChatbotDocumentById; kept for scripts */
 export async function deleteChatbotDocument(userId: string, source: string): Promise<boolean> {
     await ensureDbConnection();

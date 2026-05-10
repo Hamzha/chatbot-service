@@ -4,9 +4,52 @@ import { internalServerError, notFoundError, upstreamError, validationError } fr
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
-import { deleteChatbotDocumentById, getChatbotDocument } from "@/lib/db/chatbotDocumentRepo";
+import {
+    deleteChatbotDocumentById,
+    deleteChatbotDocumentsByRagSourceKeys,
+    getChatbotDocument,
+} from "@/lib/db/chatbotDocumentRepo";
 
 type VectorDeletionFailure = { key: string; status: number; detail: string };
+
+function isHttpVectorSourceId(source: string): boolean {
+    return /^https?:\/\//i.test(source.trim());
+}
+
+function httpSourcesSameOrigin(a: string, b: string): boolean {
+    try {
+        return new URL(a.trim()).origin === new URL(b.trim()).origin;
+    } catch {
+        return false;
+    }
+}
+
+/** If `pages[]` is stale/empty, discover every same-origin URL source still in Chroma for this user. */
+async function augmentSiteKeysFromChroma(
+    baseUrl: string,
+    userId: string,
+    siteOriginKey: string,
+    keys: Set<string>,
+): Promise<void> {
+    const origin = siteOriginKey.trim();
+    if (!origin || !isHttpVectorSourceId(origin)) return;
+    try {
+        const res = await fetch(`${baseUrl}/v1/sources`, {
+            method: "GET",
+            headers: { "x-user-id": userId },
+        });
+        const text = await res.text();
+        if (!res.ok || !text.trim()) return;
+        const data = JSON.parse(text) as { sources?: { source: string }[] };
+        for (const row of data.sources ?? []) {
+            const sid = typeof row.source === "string" ? row.source.trim() : "";
+            if (!sid || !isHttpVectorSourceId(sid)) continue;
+            if (httpSourcesSameOrigin(sid, origin)) keys.add(sid);
+        }
+    } catch {
+        // ignore — fall back to Mongo-derived keys only
+    }
+}
 
 async function deleteChromaSource(
     baseUrl: string,
@@ -46,15 +89,32 @@ async function deleteDocumentById(
         return notFoundError("Document not found");
     }
 
-    // For a site aggregator row, purge every per-page Chroma source; for a regular upload,
-    // just purge the single key. If ANY page delete fails with a non-404 error we abort so
-    // the Mongo row (and the user's reference to the vectors) stays consistent.
-    const keysToDelete: string[] =
-        existing.kind === "site" && existing.pages.length > 0
-            ? [...new Set(existing.pages.map((p) => p.key).filter((k) => k.length > 0))]
-            : [existing.ragSourceKey];
+    // Chroma `source` ids: per-page URLs for `kind: "site"`, plus the site-level origin key
+    // (vectors are never stored under that origin today, but DELETE tolerates 404).
+    // Legacy crawls sometimes created one Mongo row per page with `ragSourceKey` = page URL;
+    // we remove those rows after vectors via `deleteChatbotDocumentsByRagSourceKeys` below.
+    let keysToDelete: string[] =
+        existing.kind === "site"
+            ? [
+                  ...new Set(
+                      [
+                          ...existing.pages.map((p) => p.key.trim()).filter((k) => k.length > 0),
+                          existing.ragSourceKey.trim(),
+                      ].filter((k) => k.length > 0),
+                  ),
+              ]
+            : [existing.ragSourceKey.trim()].filter((k) => k.length > 0);
 
     const baseUrl = getChatbotApiBaseUrl();
+    if (existing.kind === "site") {
+        const merged = new Set(keysToDelete.filter((k) => k.length > 0));
+        await augmentSiteKeysFromChroma(baseUrl, userId, existing.ragSourceKey, merged);
+        keysToDelete = [...merged];
+    }
+
+    if (keysToDelete.length === 0) {
+        return validationError("Document has no vector source keys to delete");
+    }
     const failures: VectorDeletionFailure[] = [];
     try {
         for (const key of keysToDelete) {
@@ -77,6 +137,7 @@ async function deleteDocumentById(
     }
 
     try {
+        await deleteChatbotDocumentsByRagSourceKeys(userId, keysToDelete);
         await deleteChatbotDocumentById(userId, documentId);
     } catch (error) {
         return internalServerError(error, "Vectors removed but failed to remove document record");

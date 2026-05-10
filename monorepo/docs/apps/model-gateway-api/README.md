@@ -19,6 +19,8 @@
 - Framework: FastAPI
 - Language: Python
 
+Optional **`monorepo/.env.shared`** aligns embedding and Chroma settings with **`chatbot-api`** when both use the same vector store; see [Operations](./operations.md).
+
 ## Related Docs
 
 - [Architecture](./architecture.md)

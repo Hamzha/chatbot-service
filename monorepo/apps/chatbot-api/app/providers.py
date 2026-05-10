@@ -82,6 +82,44 @@ def _ollama_timeout(connect_s: float, read_s: float) -> tuple[float, float]:
     return (connect_s, read_s)
 
 
+class OpenRouterEmbedder:
+    """OpenRouter `/v1/embeddings` (same request shape as model-gateway-api)."""
+
+    def __init__(self, api_key: str, model: str, base_url: str) -> None:
+        self.api_key = api_key.strip()
+        self.model = model.strip()
+        root = base_url.rstrip("/")
+        self.url = root if root.endswith("/v1") else f"{root}/v1"
+        self.embed_url = f"{self.url}/embeddings"
+
+    def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        if not self.api_key:
+            raise RuntimeError("OPEN_ROUTER_API_KEY is missing for OpenRouter embeddings.")
+        if not self.model:
+            raise RuntimeError("OPENROUTER_EMBEDDING_MODEL is missing.")
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "input": [
+                {"content": [{"type": "text", "text": text}]}
+                for text in texts
+            ],
+            "encoding_format": "float",
+        }
+        resp = requests.post(self.embed_url, headers=headers, json=payload, timeout=120.0)
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"OpenRouter embedding request failed: HTTP {resp.status_code} - {(resp.text or '')[:500]}"
+            )
+        data = resp.json()
+        if "data" not in data or not data["data"]:
+            raise RuntimeError("OpenRouter returned no embedding data.")
+        return [item["embedding"] for item in data["data"]]
+
+
 class OllamaEmbedder:
     def __init__(self, base_url: str, model: str, timeout_s: int) -> None:
         self.base_url = base_url.rstrip("/")
@@ -140,24 +178,37 @@ class OllamaGenerator:
         return answer
 
 
-def build_provider_clients() -> tuple[Embedder, Generator]:
+def _build_embedder() -> Embedder:
+    eb = settings.effective_embedding_backend
+    if eb == "openrouter":
+        return OpenRouterEmbedder(
+            api_key=settings.open_router_api_key,
+            model=settings.resolved_openrouter_embedding_model,
+            base_url=settings.open_router_base_url,
+        )
+    if eb == "openai":
+        return OpenAIEmbedder(
+            api_key=settings.openai_api_key,
+            model=settings.resolved_openai_embed_model,
+        )
+    return OllamaEmbedder(
+        base_url=settings.ollama_base_url,
+        model=settings.resolved_ollama_embed_model,
+        timeout_s=settings.ollama_timeout_seconds,
+    )
+
+
+def _build_generator() -> Generator:
     provider = settings.model_provider.lower().strip()
     if provider == "ollama":
-        return (
-            OllamaEmbedder(
-                base_url=settings.ollama_base_url,
-                model=settings.ollama_embed_model,
-                timeout_s=settings.ollama_timeout_seconds,
-            ),
-            OllamaGenerator(
-                base_url=settings.ollama_base_url,
-                model=settings.ollama_chat_model,
-                timeout_s=settings.ollama_generate_timeout_seconds,
-            ),
+        return OllamaGenerator(
+            base_url=settings.ollama_base_url,
+            model=settings.ollama_chat_model,
+            timeout_s=settings.ollama_generate_timeout_seconds,
         )
+    return OpenAIGenerator(api_key=settings.openai_api_key, model=settings.openai_chat_model)
 
-    return (
-        OpenAIEmbedder(api_key=settings.openai_api_key, model=settings.openai_embed_model),
-        OpenAIGenerator(api_key=settings.openai_api_key, model=settings.openai_chat_model),
-    )
+
+def build_provider_clients() -> tuple[Embedder, Generator]:
+    return _build_embedder(), _build_generator()
 

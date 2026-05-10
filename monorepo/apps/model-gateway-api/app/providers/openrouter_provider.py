@@ -1,8 +1,29 @@
+import asyncio
+
 from openai import AsyncOpenAI
 import httpx
 
 from app.core.config import Settings
 from app.schemas.chat import ChatMessage
+
+
+def _ollama_embed_sync(texts: list[str], base_url: str, model: str) -> list[list[float]]:
+    base = base_url.rstrip("/")
+    out: list[list[float]] = []
+    with httpx.Client(timeout=120.0) as client:
+        for text in texts:
+            r = client.post(
+                f"{base}/api/embeddings",
+                json={"model": model, "prompt": text},
+            )
+            if r.status_code != 200:
+                detail = (r.text or "")[:500]
+                raise RuntimeError(
+                    f"Ollama embeddings failed: HTTP {r.status_code} at {r.url!r}. Body: {detail}"
+                )
+            data = r.json()
+            out.append(data["embedding"])
+    return out
 
 
 class OpenRouterProvider:
@@ -104,9 +125,15 @@ class OpenRouterProvider:
 
         embed_model = getattr(
             current_settings,
-            "open_router_embed_model",
-            "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+            "embedding_model",
+            ""
         )
+        if not str(embed_model).strip():
+            embed_model = getattr(
+                current_settings,
+                "open_router_embed_model",
+                "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+            )
 
         print(f"Embedding texts with model '{embed_model}'")
         print(f"Sending embedding request for {len(texts)} texts...")
@@ -134,13 +161,31 @@ async def generate_embeddings(
 ) -> list[list[float]]:
     current_settings = Settings()
 
+    eb = (current_settings.embedding_backend or "openrouter").strip().lower()
+    if eb == "ollama":
+        model = (current_settings.ollama_embedding_model or current_settings.embedding_model or "").strip()
+        if not model:
+            model = "nomic-embed-text"
+        return await asyncio.to_thread(
+            _ollama_embed_sync,
+            texts,
+            current_settings.ollama_base_url,
+            model,
+        )
+
     api_key = current_settings.open_router_api_key
 
     model = getattr(
         current_settings,
-        "open_router_embed_model",
-        "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+        "embedding_model",
+        ""
     )
+    if not str(model).strip():
+        model = getattr(
+            current_settings,
+            "open_router_embed_model",
+            "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+        )
 
     url = "https://openrouter.ai/api/v1/embeddings"
 

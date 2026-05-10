@@ -47,9 +47,12 @@ sequenceDiagram
     WebAPI->>Scraper: call /api/v1/scrape or /api/v1/crawl/stream
     Scraper-->>WebAPI: structured text / stream events
     WebAPI->>DB: persist job progress and metadata
-    WebAPI->>Chatbot: ingest text for retrieval
+    WebAPI->>Chatbot: POST /v1/ingest-text (page URL as source id)
+    WebAPI->>DB: upsert ChatbotDocument site row
     WebAPI-->>Browser: response + ingestion metadata
 ```
+
+Ingest and document routes use **`getChatbotApiBaseUrl()`** ( **`CHATBOT_API_URL`** ), independent of **`USE_CHATBOT_API`**, so vectors and the scraper UI stay aligned with **`chatbot-api`** even when chat queries go to **`model-gateway-api`**.
 
 ## Security and Control Points
 

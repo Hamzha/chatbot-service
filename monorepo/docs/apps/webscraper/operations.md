@@ -36,3 +36,4 @@ Note: lint/check-type scripts are placeholders in this workspace.
 - Dynamic mode needs Playwright Chromium installed (`npm run install:playwright --workspace=webscraper`).
 - Keep `SCRAPER_ALLOWED_DOMAINS` empty for unrestricted local testing, or set strict values for production.
 - If consumers use API key auth, ensure they send `X-API-Key`.
+- **`web`** forwards extracted text to **`chatbot-api`** for embedding; ensure **`web`** `CHATBOT_API_URL` and the Python apps’ **`.env.shared`** / Chroma settings match the ingest path you use for RAG.

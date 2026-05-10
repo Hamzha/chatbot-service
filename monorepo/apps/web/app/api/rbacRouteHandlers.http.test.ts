@@ -37,6 +37,8 @@ vi.mock("@/lib/db/chatbotDocumentRepo", () => ({
     createPendingChatbotDocument: vi.fn(),
     getChatbotDocument: vi.fn(),
     deleteChatbotDocumentById: vi.fn(),
+    deleteChatbotDocumentsByRagSourceKeys: vi.fn(),
+    upsertChatbotDocument: vi.fn(),
 }));
 
 vi.mock("@/lib/db/chatSessionRepo", () => ({
@@ -89,9 +91,11 @@ import { getAdminUserRow, listUsersForAdmin, updateUserRoleIds } from "@/lib/db/
 import { listPermissions } from "@/lib/db/permissionRepo";
 import {
     deleteChatbotDocumentById,
+    deleteChatbotDocumentsByRagSourceKeys,
     finalizeChatbotDocument,
     getChatbotDocument,
     listChatbotDocuments,
+    upsertChatbotDocument,
 } from "@/lib/db/chatbotDocumentRepo";
 import {
     createChatSession,
@@ -526,6 +530,59 @@ describe("GET /api/chatbot/documents", () => {
         expect(body.sources).toHaveLength(1);
         expect(body.sources[0].id).toBe("d1");
     });
+
+    it("when Mongo empty, backfill imports uploads only — skips https Chroma sources (orphaned crawl chunks)", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:read"]));
+
+        const afterBackfillDoc = {
+            id: "pdf-1",
+            userId: "user-1",
+            source: "memo.pdf",
+            ragSourceKey: "memo.pdf",
+            chunks: 2,
+            kind: "upload" as const,
+            pages: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        vi.mocked(listChatbotDocuments)
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([afterBackfillDoc]);
+
+        vi.mocked(upsertChatbotDocument).mockResolvedValue(afterBackfillDoc);
+
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+            const full = typeof input === "string" ? input : input.url;
+            if (/v1\/sources($|\?)/.test(full)) {
+                return new Response(
+                    JSON.stringify({
+                        sources: [
+                            { source: "https://orphan.test/page", chunks: 99 },
+                            { source: "memo.pdf", chunks: 2 },
+                        ],
+                    }),
+                    { status: 200 },
+                );
+            }
+            return new Response("not found", { status: 404 });
+        });
+
+        try {
+            const res = await chatbotDocumentsGet();
+            expect(res.status).toBe(200);
+
+            expect(vi.mocked(upsertChatbotDocument)).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(upsertChatbotDocument)).toHaveBeenCalledWith("user-1", "memo.pdf", 2);
+
+            const body = (await res.json()) as { sources: { source: string }[] };
+            expect(body.sources).toHaveLength(1);
+            expect(body.sources[0].source).toBe("memo.pdf");
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
 });
 
 describe("GET /api/chatbot/sessions", () => {
@@ -793,6 +850,7 @@ describe("DELETE /api/chatbot/documents/[documentId]", () => {
 
     it("fans out vector deletions to every page when deleting a site aggregator", async () => {
         goodSession();
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(2);
         vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:delete"]));
         vi.mocked(getChatbotDocument).mockResolvedValue({
             id: "507f1f77bcf86cd799439011",
@@ -834,12 +892,22 @@ describe("DELETE /api/chatbot/documents/[documentId]", () => {
             expect(res.status).toBe(200);
             const body = (await res.json()) as { ok: boolean; deletedPages: number };
             expect(body.ok).toBe(true);
-            expect(body.deletedPages).toBe(3);
+            expect(body.deletedPages).toBe(4);
             expect(deletedKeys.sort()).toEqual([
+                "https://example.com",
                 "https://example.com/a",
                 "https://example.com/b",
                 "https://example.com/c",
             ]);
+            expect(vi.mocked(deleteChatbotDocumentsByRagSourceKeys)).toHaveBeenCalledWith(
+                "user-1",
+                expect.arrayContaining([
+                    "https://example.com",
+                    "https://example.com/a",
+                    "https://example.com/b",
+                    "https://example.com/c",
+                ]),
+            );
             expect(vi.mocked(deleteChatbotDocumentById)).toHaveBeenCalledWith(
                 "user-1",
                 "507f1f77bcf86cd799439011",
@@ -849,8 +917,66 @@ describe("DELETE /api/chatbot/documents/[documentId]", () => {
         }
     });
 
+    it("discovers same-origin URL sources from Chroma when site row pages array is empty", async () => {
+        goodSession();
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(2);
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:delete"]));
+        vi.mocked(getChatbotDocument).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 9,
+            kind: "site",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+        vi.mocked(deleteChatbotDocumentById).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 9,
+            kind: "site",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+
+        const deletedKeys: string[] = [];
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+            const full = typeof input === "string" ? input : (input as URL).toString();
+            if (/v1\/sources($|\?)/.test(full)) {
+                return new Response(
+                    JSON.stringify({
+                        sources: [
+                            { source: "https://example.com/p1", chunks: 3 },
+                            { source: "https://other.net/x", chunks: 1 },
+                        ],
+                    }),
+                    { status: 200 },
+                );
+            }
+            const m = full.match(/\/v1\/sources\/([^?]+)/);
+            if (m) deletedKeys.push(decodeURIComponent(m[1]));
+            return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        });
+
+        try {
+            const res = await chatbotDocumentByIdDelete(new Request("http://localhost"), { params });
+            expect(res.status).toBe(200);
+            expect(deletedKeys.sort()).toEqual(["https://example.com", "https://example.com/p1"]);
+            const body = (await res.json()) as { deletedPages: number };
+            expect(body.deletedPages).toBe(2);
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
     it("deletes exactly one vector source for legacy upload rows", async () => {
         goodSession();
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(1);
         vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:delete"]));
         vi.mocked(getChatbotDocument).mockResolvedValue({
             id: "507f1f77bcf86cd799439011",
@@ -921,18 +1047,15 @@ describe("DELETE /api/chatbot/documents/[documentId]", () => {
             updatedAt: "",
         });
 
-        let call = 0;
         const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
-            call += 1;
-            if (call === 1) {
-                return new Response("not found", { status: 404 });
-            }
-            return new Response("ok", { status: 200 });
+            return new Response("not found", { status: 404 });
         });
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(2);
 
         try {
             const res = await chatbotDocumentByIdDelete(new Request("http://localhost"), { params });
             expect(res.status).toBe(200);
+            expect(vi.mocked(deleteChatbotDocumentsByRagSourceKeys)).toHaveBeenCalled();
             expect(vi.mocked(deleteChatbotDocumentById)).toHaveBeenCalled();
         } finally {
             fetchSpy.mockRestore();
