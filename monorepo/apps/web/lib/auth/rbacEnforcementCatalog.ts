@@ -170,6 +170,36 @@ export const RBAC_CORE_ENFORCEMENT_POINTS = [
         feature: "Chatbot — delete source (legacy)",
     },
     {
+        id: "api.chatbot.escalations.collection.GET",
+        permission: "escalations:read",
+        surfaces: ["api"],
+        feature: "Escalations — list owner inbox",
+    },
+    {
+        id: "api.chatbot.escalations.item.GET",
+        permission: "escalations:read",
+        surfaces: ["api"],
+        feature: "Escalations — get ticket",
+    },
+    {
+        id: "api.chatbot.escalations.item.PATCH",
+        permission: "escalations:update",
+        surfaces: ["api"],
+        feature: "Escalations — update status / notes",
+    },
+    {
+        id: "page.dashboard.inbox",
+        permission: "escalations:read",
+        surfaces: ["page"],
+        feature: "UI — Escalations inbox",
+    },
+    {
+        id: "page.dashboard.inbox.ticket",
+        permission: "escalations:read",
+        surfaces: ["page"],
+        feature: "UI — Escalation ticket detail",
+    },
+    {
         id: "api.scraper.scrape.POST",
         permission: "scraper:create",
         surfaces: ["api"],

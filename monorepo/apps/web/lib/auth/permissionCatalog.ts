@@ -51,6 +51,8 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     { module: "chatbot_jobs", action: "read", description: "Poll ingestion/query job status" },
     { module: "chatbot_sources", action: "read", description: "List vector sources (legacy API)" },
     { module: "chatbot_sources", action: "delete", description: "Delete vectors by source (legacy API)" },
+    { module: "escalations", action: "read", description: "View human-escalation tickets in the owner inbox" },
+    { module: "escalations", action: "update", description: "Update escalation status / internal notes" },
     ...crud("scraper", {
         create: "Run scraper jobs",
         read: "View scraper UI",

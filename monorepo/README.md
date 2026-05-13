@@ -388,7 +388,8 @@ Mongo-backed fixed-window rate limiting is applied to high-cost endpoints (auth,
 
 Current widget behavior:
 
-- Script: `apps/web/public/chatbot-widget.js`
+- Script: `apps/web/public/chatbot-widget.js` (launcher + iframe shell only)
+- Iframe target: `apps/web/app/(public)/widget/[botId]/page.tsx` (React chat UI)
 - Reads `data-bot-id`
 - Fetches config and posts chat to widget APIs
 - Dynamic color styling and mobile-friendly behavior
@@ -397,6 +398,43 @@ Public widget APIs:
 
 - `POST /api/chatbot/widget/chat`
 - `GET /api/chatbot/widget/config/[botId]`
+- `POST /api/chatbot/widget/escalation` — human-escalation tickets (see below)
+
+## Human Escalation
+
+Lets a visitor request a human handoff from inside the widget. v1 is asynchronous (ticket + email), not live takeover.
+
+### Triggers (all in the widget)
+
+- **Header button** "Talk to human" (always visible).
+- **Phrase regex** on user messages: `/\b(talk|speak|chat)\s+(to\s+)?(a\s+)?(human|agent|person|real\s+person|someone)\b/i` — suppresses the chat send and opens the form pre-filled.
+- **Low confidence** — when the chat backend returns `num_contexts === 0` for two replies in a row, the widget injects an inline "Talk to a human →" button. Both `chatbot-api` and `model-gateway-api` already include `num_contexts` in chat responses; `apps/web` proxies it through `/api/chatbot/widget/chat`.
+
+### Storage
+
+- Mongo collection `escalations` (`apps/web/lib/db/escalationRepo.ts`).
+- Indexes: `{ botOwnerId, status, createdAt }` for inbox list, `{ widgetSessionId, status }` for duplicate guard.
+- `widgetSessionId` is a per-browser UUID kept in localStorage (`cb-widget-session:{botId}`); duplicate-guard returns the existing ticket id if one is already `open` or `in_progress` for that session.
+
+### Endpoints
+
+| Route                                                    | Auth                  | Notes                                                                |
+| -------------------------------------------------------- | --------------------- | -------------------------------------------------------------------- |
+| `POST /api/chatbot/widget/escalation`                    | public (rate limited) | 3 / 15 min per IP. Captures contact + transcript snapshot + emails owner via Resend. |
+| `GET /api/chatbot/escalations`                           | `escalations:read`    | Cursor-paged list scoped to the owner.                                |
+| `GET /api/chatbot/escalations/[id]`                      | `escalations:read`    | Single ticket (owner-scoped).                                         |
+| `PATCH /api/chatbot/escalations/[id]`                    | `escalations:update`  | Status (`open → in_progress → resolved`) + notes.                     |
+
+### Dashboard
+
+- `/dashboard/inbox` — list (filter by status).
+- `/dashboard/inbox/[ticketId]` — detail (status dropdown, debounced notes, transcript view, mailto reply).
+- Both gated with `escalations:read`; PATCH gated with `escalations:update`. Sidebar entry `nav.dashboard.inbox` filters on `escalations:read`.
+
+### Notifications
+
+- One email per new ticket, sent via Resend from `EMAIL_FROM` to the bot owner's account email.
+- Template: `apps/web/lib/email/escalationEmail.ts`. Failures are logged and swallowed; the ticket still lands in the inbox.
 
 ## Known Issues
 

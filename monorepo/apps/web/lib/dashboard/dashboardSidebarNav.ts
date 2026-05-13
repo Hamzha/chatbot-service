@@ -34,6 +34,12 @@ export const DASHBOARD_SIDEBAR_NAV = [
         permission: "chatbot_sessions:read",
     },
     {
+        id: "nav.dashboard.inbox",
+        label: "Inbox",
+        href: "/dashboard/inbox",
+        permission: "escalations:read",
+    },
+    {
         id: "nav.dashboard.admin.roles",
         label: "Roles & permissions",
         href: "/dashboard/admin/roles",

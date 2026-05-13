@@ -208,6 +208,8 @@ export function defaultClientCodes(): string[] {
         "chatbot_jobs:read",
         "chatbot_sources:read",
         "chatbot_sources:delete",
+        "escalations:read",
+        "escalations:update",
         "scraper:create",
         "scraper:read",
         "scraper:update",
