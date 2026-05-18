@@ -6,11 +6,24 @@ import { getChatSessionById } from "@/lib/db/chatSessionRepo";
 import { getWidgetChatBackendBaseUrl, isChatbotApiEnabled } from "@/lib/chatbot/getChatbotServiceBaseUrl";
 import { validateWidgetRequest } from "@/lib/chatbot/validateWidgetRequest";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
+import { appendWidgetMessage } from "@/lib/db/widgetMessageRepo";
+import { findActiveTakeoverForSession } from "@/lib/db/escalationRepo";
 
 const widgetChatSchema = z.object({
   botId: z.unknown(),
   message: z.unknown(),
+  widgetSessionId: z.unknown().optional(),
 });
+
+function normalizeWidgetSessionId(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length > 128) return null;
+  return trimmed;
+}
+
+const LIVE_HOLDING_REPLY =
+  "An agent is reviewing your message and will reply here shortly.";
 
 type UpstreamWidgetResponse = {
   reply?: string;
@@ -36,6 +49,31 @@ async function postWidgetChat(request: Request) {
   const chatbot = await getChatSessionById(result.botId);
   if (!chatbot) {
     return NextResponse.json({ error: "Invalid botId" }, { status: 404 });
+  }
+
+  const widgetSessionId = normalizeWidgetSessionId(parsed.data.widgetSessionId);
+
+  if (widgetSessionId) {
+    const activeTakeover = await findActiveTakeoverForSession(widgetSessionId);
+    if (activeTakeover) {
+      try {
+        await appendWidgetMessage({
+          botId: result.botId,
+          widgetSessionId,
+          role: "user",
+          content: result.message,
+        });
+      } catch (err) {
+        console.error("[widget:chat] failed to persist user message during takeover", err);
+      }
+      return NextResponse.json({
+        reply: LIVE_HOLDING_REPLY,
+        sources: [],
+        num_contexts: 0,
+        backend: "live-agent",
+        live: true,
+      });
+    }
   }
 
   const useChatbotApi = isChatbotApiEnabled();
@@ -100,8 +138,29 @@ async function postWidgetChat(request: Request) {
     );
   }
 
+  const replyText = data.reply || data.answer || data.output_text || "Thanks for your message.";
+
+  if (widgetSessionId) {
+    try {
+      await appendWidgetMessage({
+        botId: result.botId,
+        widgetSessionId,
+        role: "user",
+        content: result.message,
+      });
+      await appendWidgetMessage({
+        botId: result.botId,
+        widgetSessionId,
+        role: "bot",
+        content: replyText,
+      });
+    } catch (err) {
+      console.error("[widget:chat] failed to persist exchange", err);
+    }
+  }
+
   return NextResponse.json({
-    reply: data.reply || data.answer || data.output_text || "Thanks for your message.",
+    reply: replyText,
     sources: data.sources ?? [],
     num_contexts: data.num_contexts ?? 0,
     backend: useChatbotApi ? "chatbot-api" : "model-gateway-api",

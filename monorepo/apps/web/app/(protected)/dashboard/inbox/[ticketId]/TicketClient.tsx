@@ -14,6 +14,7 @@ import type {
     EscalationRecord,
     EscalationStatus,
 } from "@/lib/db/escalationRepo";
+import type { WidgetMessageRecord } from "@/lib/db/widgetMessageRepo";
 
 const STATUS_LABEL: Record<EscalationStatus, string> = {
     open: "Open",
@@ -27,23 +28,49 @@ const REASON_LABEL: Record<EscalationRecord["reason"], string> = {
     manual: "Manual",
 };
 
+type StreamEvent =
+    | { type: "hello"; ticketId: string; since: string; takeoverActive: boolean; status: EscalationStatus }
+    | { type: "message"; message: WidgetMessageRecord }
+    | { type: "takeover"; active: boolean }
+    | { type: "status"; status: EscalationStatus };
+
 export function TicketClient({ ticketId }: { ticketId: string }) {
     const [record, setRecord] = useState<EscalationRecord | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [notesDraft, setNotesDraft] = useState("");
+    const [liveMessages, setLiveMessages] = useState<WidgetMessageRecord[]>([]);
+    const [streamConnected, setStreamConnected] = useState(false);
+    const [agentDraft, setAgentDraft] = useState("");
+    const [sending, setSending] = useState(false);
+    const [takeoverPending, setTakeoverPending] = useState(false);
     const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+    const seenMessageIdsRef = useRef<Set<string>>(new Set());
 
     const load = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const res = await fetch(`/api/chatbot/escalations/${encodeURIComponent(ticketId)}`);
-            const data = await parseJsonResponse<{ escalation?: EscalationRecord }>(res);
-            assertOkJson(res, data);
-            const rec = data.escalation ?? null;
+            const [ticketRes, messagesRes] = await Promise.all([
+                fetch(`/api/chatbot/escalations/${encodeURIComponent(ticketId)}`),
+                fetch(`/api/chatbot/escalations/${encodeURIComponent(ticketId)}/messages?limit=200`),
+            ]);
+            const ticketData = await parseJsonResponse<{ escalation?: EscalationRecord }>(ticketRes);
+            assertOkJson(ticketRes, ticketData);
+            const rec = ticketData.escalation ?? null;
             setRecord(rec);
             setNotesDraft(rec?.notes ?? "");
+
+            if (messagesRes.ok) {
+                const msgData = await parseJsonResponse<{ messages?: WidgetMessageRecord[] }>(messagesRes);
+                const msgs = msgData.messages ?? [];
+                seenMessageIdsRef.current = new Set(msgs.map((m) => m.id));
+                setLiveMessages(msgs);
+            } else {
+                seenMessageIdsRef.current = new Set();
+                setLiveMessages([]);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
             setRecord(null);
@@ -55,6 +82,50 @@ export function TicketClient({ ticketId }: { ticketId: string }) {
     useEffect(() => {
         void load();
     }, [load]);
+
+    useEffect(() => {
+        if (!record) return;
+        const sinceParam = liveMessages.length > 0
+            ? liveMessages[liveMessages.length - 1]!.createdAt
+            : record.createdAt;
+        const es = new EventSource(
+            `/api/chatbot/escalations/${encodeURIComponent(ticketId)}/stream?since=${encodeURIComponent(sinceParam)}`,
+        );
+        es.onopen = () => setStreamConnected(true);
+        es.onerror = () => setStreamConnected(false);
+        es.onmessage = (ev) => {
+            try {
+                const data = JSON.parse(ev.data) as StreamEvent;
+                if (data.type === "message") {
+                    if (seenMessageIdsRef.current.has(data.message.id)) return;
+                    seenMessageIdsRef.current.add(data.message.id);
+                    setLiveMessages((cur) => [...cur, data.message]);
+                } else if (data.type === "takeover") {
+                    setRecord((cur) =>
+                        cur
+                            ? {
+                                ...cur,
+                                liveTakeover: { ...cur.liveTakeover, active: data.active },
+                            }
+                            : cur,
+                    );
+                } else if (data.type === "status") {
+                    setRecord((cur) => (cur ? { ...cur, status: data.status } : cur));
+                }
+            } catch {
+                /* ignore */
+            }
+        };
+        return () => {
+            es.close();
+            setStreamConnected(false);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [record?.id, ticketId]);
+
+    useEffect(() => {
+        transcriptEndRef.current?.scrollIntoView({ block: "end" });
+    }, [liveMessages.length]);
 
     async function patchTicket(body: { status?: EscalationStatus; notes?: string }) {
         try {
@@ -77,6 +148,56 @@ export function TicketClient({ ticketId }: { ticketId: string }) {
         }
     }
 
+    async function toggleTakeover(next: "start" | "end") {
+        if (takeoverPending) return;
+        setTakeoverPending(true);
+        try {
+            const res = await fetch(`/api/chatbot/escalations/${encodeURIComponent(ticketId)}/takeover`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: next }),
+            });
+            const data = await parseJsonResponse<{ escalation?: EscalationRecord; error?: string }>(res);
+            if (!res.ok) {
+                toast.error(formatApiErrorMessage(data, res.status));
+                return;
+            }
+            if (data.escalation) setRecord(data.escalation);
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : String(err));
+        } finally {
+            setTakeoverPending(false);
+        }
+    }
+
+    async function sendAgentMessage(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        const content = agentDraft.trim();
+        if (!content || sending) return;
+        setSending(true);
+        try {
+            const res = await fetch(`/api/chatbot/escalations/${encodeURIComponent(ticketId)}/messages`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content }),
+            });
+            const data = await parseJsonResponse<{ message?: WidgetMessageRecord; error?: string }>(res);
+            if (!res.ok) {
+                toast.error(formatApiErrorMessage(data, res.status));
+                return;
+            }
+            if (data.message && !seenMessageIdsRef.current.has(data.message.id)) {
+                seenMessageIdsRef.current.add(data.message.id);
+                setLiveMessages((cur) => [...cur, data.message!]);
+            }
+            setAgentDraft("");
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : String(err));
+        } finally {
+            setSending(false);
+        }
+    }
+
     function onStatusChange(next: EscalationStatus) {
         if (!record || next === record.status) return;
         void patchTicket({ status: next });
@@ -89,6 +210,9 @@ export function TicketClient({ ticketId }: { ticketId: string }) {
             void patchTicket({ notes: value });
         }, 600);
     }
+
+    const takeoverActive = record?.liveTakeover.active ?? false;
+    const canTakeOver = record && record.status !== "resolved";
 
     return (
         <PageContainer>
@@ -143,24 +267,69 @@ export function TicketClient({ ticketId }: { ticketId: string }) {
                         </section>
 
                         <section className="glass-strong rounded-2xl p-5">
-                            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-600">Transcript</h2>
-                            {record.transcriptSnapshot.length === 0 ? (
-                                <p className="text-sm italic text-slate-600">No transcript captured.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {record.transcriptSnapshot.map((entry, idx) => (
-                                        <div
-                                            key={idx}
-                                            className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${entry.role === "user"
-                                                ? "ml-auto bg-brand-700 text-white"
-                                                : "border border-slate-200 bg-white text-slate-800"
-                                                }`}
-                                        >
-                                            {entry.content}
-                                        </div>
-                                    ))}
+                            <div className="mb-3 flex items-center justify-between gap-3">
+                                <div>
+                                    <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-600">
+                                        Live conversation
+                                    </h2>
+                                    <p className="mt-1 text-[11px] text-slate-500">
+                                        {streamConnected ? (
+                                            <span className="inline-flex items-center gap-1">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1">
+                                                <span className="h-1.5 w-1.5 rounded-full bg-slate-300" /> Connecting…
+                                            </span>
+                                        )}
+                                    </p>
                                 </div>
-                            )}
+                                {canTakeOver ? (
+                                    takeoverActive ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => void toggleTakeover("end")}
+                                            disabled={takeoverPending}
+                                            className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                                        >
+                                            {takeoverPending ? "Ending…" : "End takeover"}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => void toggleTakeover("start")}
+                                            disabled={takeoverPending}
+                                            className="rounded-xl bg-brand-700 px-3 py-2 text-xs font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+                                        >
+                                            {takeoverPending ? "Starting…" : "Take over"}
+                                        </button>
+                                    )
+                                ) : null}
+                            </div>
+
+                            <LiveTranscript messages={liveMessages} fallbackSnapshot={record.transcriptSnapshot} />
+                            <div ref={transcriptEndRef} />
+
+                            {takeoverActive ? (
+                                <form className="mt-3 flex items-end gap-2" onSubmit={sendAgentMessage}>
+                                    <input
+                                        type="text"
+                                        value={agentDraft}
+                                        onChange={(e) => setAgentDraft(e.target.value)}
+                                        placeholder="Reply to the customer…"
+                                        maxLength={8000}
+                                        className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+                                        disabled={sending}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={sending || !agentDraft.trim()}
+                                        className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-60"
+                                    >
+                                        {sending ? "Sending…" : "Send"}
+                                    </button>
+                                </form>
+                            ) : null}
                         </section>
                     </div>
 
@@ -206,5 +375,68 @@ export function TicketClient({ ticketId }: { ticketId: string }) {
                 </div>
             )}
         </PageContainer>
+    );
+}
+
+function LiveTranscript({
+    messages,
+    fallbackSnapshot,
+}: {
+    messages: WidgetMessageRecord[];
+    fallbackSnapshot: EscalationRecord["transcriptSnapshot"];
+}) {
+    if (messages.length === 0) {
+        if (fallbackSnapshot.length === 0) {
+            return <p className="text-sm italic text-slate-600">No conversation yet.</p>;
+        }
+        return (
+            <div className="space-y-2">
+                <p className="text-[11px] italic text-slate-500">Snapshot at submission:</p>
+                {fallbackSnapshot.map((entry, idx) => (
+                    <div
+                        key={idx}
+                        className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${entry.role === "user"
+                            ? "ml-auto bg-brand-700 text-white"
+                            : "border border-slate-200 bg-white text-slate-800"
+                            }`}
+                    >
+                        {entry.content}
+                    </div>
+                ))}
+            </div>
+        );
+    }
+    return (
+        <div className="space-y-2">
+            {messages.map((m) => {
+                if (m.role === "system") {
+                    return (
+                        <div key={m.id} className="mx-auto rounded-full bg-slate-100 px-3 py-1 text-center text-[11px] text-slate-600">
+                            {m.content}
+                        </div>
+                    );
+                }
+                const isUser = m.role === "user";
+                const isAgent = m.role === "agent";
+                return (
+                    <div
+                        key={m.id}
+                        className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm leading-6 ${isUser
+                            ? "ml-auto bg-brand-700 text-white"
+                            : isAgent
+                                ? "border border-emerald-200 bg-emerald-50 text-slate-800"
+                                : "border border-slate-200 bg-white text-slate-800"
+                            }`}
+                    >
+                        {isAgent ? (
+                            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                Agent
+                            </span>
+                        ) : null}
+                        {m.content}
+                    </div>
+                );
+            })}
+        </div>
     );
 }

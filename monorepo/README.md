@@ -436,6 +436,31 @@ Lets a visitor request a human handoff from inside the widget. v1 is asynchronou
 - One email per new ticket, sent via Resend from `EMAIL_FROM` to the bot owner's account email.
 - Template: `apps/web/lib/email/escalationEmail.ts`. Failures are logged and swallowed; the ticket still lands in the inbox.
 
+### Live takeover (v2)
+
+Owner can take over an escalation ticket and chat with the visitor in real time from the inbox detail page. While takeover is active the bot is muted on that widget session; ending the takeover (or resolving the ticket) restores the bot.
+
+- **Widget message persistence**: every widget exchange is now persisted in the Mongo `widgetMessages` collection (`{botId, widgetSessionId, role: user|bot|agent|system, content, agentUserId?, createdAt}`). `/api/chatbot/widget/chat` writes both sides after a successful upstream call.
+- **Takeover state**: stored on the escalation doc as `liveTakeover: { active, agentUserId, startedAt, endedAt }`. Starting a takeover on an `open` ticket also transitions status to `in_progress`. Resolving a ticket auto-ends takeover.
+- **Bot suppression**: `/api/chatbot/widget/chat` checks `findActiveTakeoverForSession(widgetSessionId)` before calling upstream. If active, it persists the user message and returns a synthetic holding reply with `live: true` (no bot persistence, no LLM call).
+- **Real-time delivery**: Server-Sent Events (SSE), not WebSockets. Each side opens a long-lived `text/event-stream` connection; the server-side handler polls Mongo every 1.5s for rows where `createdAt > lastSeen` and pushes them down the open connection as `data: {...}` events. Keep-alive comment every 15s. Effectively a hybrid — SSE on the wire, polling at the data source.
+  - **Why SSE over WebSockets**: works natively inside Next.js route handlers (no custom server), one direction is enough since client→server stays a normal `POST`, and the wire format is plain HTTP so it traverses proxies/CDNs without special config.
+  - **Why polling over change streams**: change streams would be lower-latency but require a Mongo replica set. Polling has no infra requirement and the `setInterval` can be swapped for a change-stream subscription (or Redis pub/sub) later without touching the SSE format.
+  - **Latency**: ~750ms average, ~1.5s worst-case — fine for chat at this scale.
+
+| Route                                                          | Auth                                  | Notes                                                                                |
+| -------------------------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `POST /api/chatbot/escalations/[id]/takeover`                  | `escalations:update`                  | Body `{ action: "start" \| "end" }`. Writes a `system` widgetMessage on each toggle. |
+| `POST /api/chatbot/escalations/[id]/messages`                  | `escalations:update`                  | Body `{ content }`. Writes a `role: "agent"` widgetMessage. 409 if takeover off.     |
+| `GET  /api/chatbot/escalations/[id]/messages?limit=`           | `escalations:read`                    | Lists persisted widget messages for the ticket's session.                            |
+| `GET  /api/chatbot/escalations/[id]/stream?since=`             | `escalations:read`                    | SSE: emits `message`, `takeover`, `status` events for the owner.                     |
+| `GET  /api/chatbot/widget/stream?botId=&widgetSessionId=&since=` | public (validated botId)            | SSE: emits `message` (agent/system) and `takeover` events for the widget.            |
+
+Frontend touchpoints:
+
+- `apps/web/app/(protected)/dashboard/inbox/[ticketId]/TicketClient.tsx` — "Take over"/"End takeover" toggle, live transcript pane (falls back to the v1 snapshot when no persisted messages exist), agent input + send.
+- `apps/web/app/(public)/widget/[botId]/page.tsx` — subscribes to the widget SSE while mounted; renders `agent` (emerald-styled) and `system` (chip) messages; status flips to "Agent connected" when takeover is active; `widgetSessionId` is now sent in the chat POST body so the server can persist exchanges and check takeover state.
+
 ## Known Issues
 
 - Avoid stale global `node_modules` folders that can break turbo resolution.

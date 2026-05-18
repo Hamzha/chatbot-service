@@ -9,7 +9,7 @@ type WidgetConfig = {
 
 type WidgetMessage = {
     id: string;
-    role: "bot" | "user" | "system";
+    role: "bot" | "user" | "system" | "agent";
     text: string;
     /** When true, render an inline "Talk to human" button under this message. */
     offerEscalation?: boolean;
@@ -21,6 +21,18 @@ type EscalationView =
     | { kind: "hidden" }
     | { kind: "form"; reason: EscalationReason; prefilledMessage: string }
     | { kind: "submitted"; email: string };
+
+type StreamServerMessage = {
+    id: string;
+    role: "user" | "bot" | "agent" | "system";
+    content: string;
+    createdAt: string;
+};
+
+type StreamEvent =
+    | { type: "hello"; widgetSessionId: string; since: string }
+    | { type: "message"; message: StreamServerMessage }
+    | { type: "takeover"; active: boolean };
 
 const DEFAULT_PRIMARY = "#0f766e";
 const HEX_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
@@ -64,9 +76,11 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
     const [errorText, setErrorText] = useState<string | null>(null);
     const [escalation, setEscalation] = useState<EscalationView>({ kind: "hidden" });
     const [widgetSessionId, setWidgetSessionId] = useState<string>("");
+    const [liveActive, setLiveActive] = useState(false);
     const bottomRef = useRef<HTMLDivElement | null>(null);
     const lowConfidenceStreakRef = useRef(0);
     const escalationOfferedRef = useRef(false);
+    const seenServerIdsRef = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ block: "end" });
@@ -105,6 +119,44 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
             cancelled = true;
         };
     }, [botId]);
+
+    useEffect(() => {
+        if (!botId || !widgetSessionId) return;
+        const since = new Date().toISOString();
+        const es = new EventSource(
+            `/api/chatbot/widget/stream?botId=${encodeURIComponent(botId)}&widgetSessionId=${encodeURIComponent(
+                widgetSessionId,
+            )}&since=${encodeURIComponent(since)}`,
+        );
+        es.onmessage = (ev) => {
+            try {
+                const data = JSON.parse(ev.data) as StreamEvent;
+                if (data.type === "message") {
+                    const m = data.message;
+                    if (seenServerIdsRef.current.has(m.id)) return;
+                    seenServerIdsRef.current.add(m.id);
+                    if (m.role === "agent") {
+                        setMessages((cur) => [
+                            ...cur,
+                            { id: `srv-${m.id}`, role: "agent", text: m.content },
+                        ]);
+                    } else if (m.role === "system") {
+                        setMessages((cur) => [
+                            ...cur,
+                            { id: `srv-${m.id}`, role: "system", text: m.content },
+                        ]);
+                    }
+                } else if (data.type === "takeover") {
+                    setLiveActive(data.active);
+                }
+            } catch {
+                /* ignore */
+            }
+        };
+        return () => {
+            es.close();
+        };
+    }, [botId, widgetSessionId]);
 
     const heroStyle = useMemo(
         () => ({ background: `linear-gradient(135deg, ${primaryColor} 0%, #0f172a 100%)` }),
@@ -147,36 +199,53 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
             const response = await fetch("/api/chatbot/widget/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ botId, message: trimmed }),
+                body: JSON.stringify({ botId, message: trimmed, widgetSessionId }),
             });
-            const data = await parseJsonResponse<{ reply?: string; error?: string; num_contexts?: number }>(response);
+            const data = await parseJsonResponse<{
+                reply?: string;
+                error?: string;
+                num_contexts?: number;
+                live?: boolean;
+            }>(response);
 
             if (!response.ok) {
                 throw new Error(data.error || "Something went wrong.");
             }
 
-            const numContexts = typeof data.num_contexts === "number" ? data.num_contexts : 0;
-            if (numContexts <= 0) {
-                lowConfidenceStreakRef.current += 1;
-            } else {
+            if (data.live) {
                 lowConfidenceStreakRef.current = 0;
-            }
+                setMessages((current) => [
+                    ...current,
+                    {
+                        id: makeId(),
+                        role: "system",
+                        text: data.reply || "An agent will reply here shortly.",
+                    },
+                ]);
+            } else {
+                const numContexts = typeof data.num_contexts === "number" ? data.num_contexts : 0;
+                if (numContexts <= 0) {
+                    lowConfidenceStreakRef.current += 1;
+                } else {
+                    lowConfidenceStreakRef.current = 0;
+                }
 
-            const offerNow =
-                lowConfidenceStreakRef.current >= LOW_CONFIDENCE_THRESHOLD && !escalationOfferedRef.current;
-            if (offerNow) {
-                escalationOfferedRef.current = true;
-            }
+                const offerNow =
+                    lowConfidenceStreakRef.current >= LOW_CONFIDENCE_THRESHOLD && !escalationOfferedRef.current;
+                if (offerNow) {
+                    escalationOfferedRef.current = true;
+                }
 
-            setMessages((current) => [
-                ...current,
-                {
-                    id: makeId(),
-                    role: "bot",
-                    text: data.reply || "Thanks for your message.",
-                    offerEscalation: offerNow,
-                },
-            ]);
+                setMessages((current) => [
+                    ...current,
+                    {
+                        id: makeId(),
+                        role: "bot",
+                        text: data.reply || "Thanks for your message.",
+                        offerEscalation: offerNow,
+                    },
+                ]);
+            }
         } catch (error: unknown) {
             setMessages((current) => [
                 ...current,
@@ -200,7 +269,16 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
                     </div>
                     <div>
                         <p className="text-sm font-semibold">Support Assistant</p>
-                        <p className="text-xs text-white/80">{statusText}</p>
+                        <p className="text-xs text-white/80">
+                            {liveActive ? (
+                                <span className="inline-flex items-center gap-1.5">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                                    Agent connected
+                                </span>
+                            ) : (
+                                statusText
+                            )}
+                        </p>
                     </div>
                 </div>
                 <button
@@ -221,29 +299,50 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
                         </div>
                     ) : null}
 
-                    {messages.map((message) => (
-                        <div key={message.id} className="space-y-2">
-                            <div
-                                className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${message.role === "user"
-                                    ? "ml-auto text-white"
-                                    : "border border-slate-200 bg-white text-slate-800"
-                                    }`}
-                                style={message.role === "user" ? { backgroundColor: primaryColor } : undefined}
-                            >
-                                {message.text}
-                            </div>
-                            {message.offerEscalation ? (
-                                <button
-                                    type="button"
-                                    onClick={() => openEscalationForm("low_confidence", lastUserMessage())}
-                                    className="rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:bg-slate-50"
-                                    style={{ borderColor: primaryColor, color: primaryColor }}
+                    {messages.map((message) => {
+                        if (message.role === "system") {
+                            return (
+                                <div
+                                    key={message.id}
+                                    className="mx-auto max-w-[80%] rounded-full bg-slate-100 px-3 py-1 text-center text-[11px] text-slate-600"
                                 >
-                                    Talk to a human →
-                                </button>
-                            ) : null}
-                        </div>
-                    ))}
+                                    {message.text}
+                                </div>
+                            );
+                        }
+                        const isUser = message.role === "user";
+                        const isAgent = message.role === "agent";
+                        return (
+                            <div key={message.id} className="space-y-2">
+                                <div
+                                    className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm leading-6 shadow-sm ${isUser
+                                        ? "ml-auto text-white"
+                                        : isAgent
+                                            ? "border border-emerald-200 bg-emerald-50 text-slate-800"
+                                            : "border border-slate-200 bg-white text-slate-800"
+                                        }`}
+                                    style={isUser ? { backgroundColor: primaryColor } : undefined}
+                                >
+                                    {isAgent ? (
+                                        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                                            Agent
+                                        </span>
+                                    ) : null}
+                                    {message.text}
+                                </div>
+                                {message.offerEscalation ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => openEscalationForm("low_confidence", lastUserMessage())}
+                                        className="rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:bg-slate-50"
+                                        style={{ borderColor: primaryColor, color: primaryColor }}
+                                    >
+                                        Talk to a human →
+                                    </button>
+                                ) : null}
+                            </div>
+                        );
+                    })}
 
                     {isSending ? (
                         <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">

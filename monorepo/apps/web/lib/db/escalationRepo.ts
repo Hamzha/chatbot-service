@@ -12,6 +12,13 @@ export type EscalationTranscriptEntry = {
     createdAt: string;
 };
 
+export type LiveTakeoverState = {
+    active: boolean;
+    agentUserId: string | null;
+    startedAt: string | null;
+    endedAt: string | null;
+};
+
 export type EscalationRecord = {
     id: string;
     botOwnerId: string;
@@ -23,9 +30,17 @@ export type EscalationRecord = {
     transcriptSnapshot: EscalationTranscriptEntry[];
     status: EscalationStatus;
     notes: string;
+    liveTakeover: LiveTakeoverState;
     createdAt: string;
     updatedAt: string;
     resolvedAt: string | null;
+};
+
+type LiveTakeoverDoc = {
+    active: boolean;
+    agentUserId?: Types.ObjectId | null;
+    startedAt?: Date | null;
+    endedAt?: Date | null;
 };
 
 type EscalationDoc = {
@@ -39,6 +54,7 @@ type EscalationDoc = {
     transcriptSnapshot: { role: EscalationTranscriptRole; content: string; createdAt: Date }[];
     status: EscalationStatus;
     notes: string;
+    liveTakeover?: LiveTakeoverDoc;
     createdAt: Date;
     updatedAt: Date;
     resolvedAt: Date | null;
@@ -49,6 +65,16 @@ const transcriptEntrySchema = new Schema(
         role: { type: String, required: true, enum: ["user", "bot"] },
         content: { type: String, required: true, maxlength: 4000 },
         createdAt: { type: Date, required: true, default: () => new Date() },
+    },
+    { _id: false },
+);
+
+const liveTakeoverSchema = new Schema<LiveTakeoverDoc>(
+    {
+        active: { type: Boolean, required: true, default: false },
+        agentUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+        startedAt: { type: Date, default: null },
+        endedAt: { type: Date, default: null },
     },
     { _id: false },
 );
@@ -67,6 +93,10 @@ const escalationSchema = new Schema<EscalationDoc>(
         transcriptSnapshot: { type: [transcriptEntrySchema], default: [] },
         status: { type: String, required: true, enum: ["open", "in_progress", "resolved"], default: "open" },
         notes: { type: String, default: "", maxlength: 4000 },
+        liveTakeover: {
+            type: liveTakeoverSchema,
+            default: () => ({ active: false, agentUserId: null, startedAt: null, endedAt: null }),
+        },
         resolvedAt: { type: Date, default: null },
     },
     { timestamps: true },
@@ -74,6 +104,7 @@ const escalationSchema = new Schema<EscalationDoc>(
 
 escalationSchema.index({ botOwnerId: 1, status: 1, createdAt: -1 });
 escalationSchema.index({ widgetSessionId: 1, status: 1 });
+escalationSchema.index({ widgetSessionId: 1, "liveTakeover.active": 1 });
 
 const EscalationModel: Model<EscalationDoc> =
     (mongoose.models.Escalation as Model<EscalationDoc> | undefined) ||
@@ -81,6 +112,16 @@ const EscalationModel: Model<EscalationDoc> =
 
 async function ensureDbConnection(): Promise<void> {
     await connectToDatabase(getMongoDbUri());
+}
+
+function mapLiveTakeover(t: LiveTakeoverDoc | undefined | null): LiveTakeoverState {
+    if (!t) return { active: false, agentUserId: null, startedAt: null, endedAt: null };
+    return {
+        active: Boolean(t.active),
+        agentUserId: t.agentUserId ? t.agentUserId.toString() : null,
+        startedAt: t.startedAt ? t.startedAt.toISOString() : null,
+        endedAt: t.endedAt ? t.endedAt.toISOString() : null,
+    };
 }
 
 function mapDoc(d: EscalationDoc): EscalationRecord {
@@ -99,6 +140,7 @@ function mapDoc(d: EscalationDoc): EscalationRecord {
         })),
         status: d.status,
         notes: d.notes ?? "",
+        liveTakeover: mapLiveTakeover(d.liveTakeover),
         createdAt: d.createdAt.toISOString(),
         updatedAt: d.updatedAt.toISOString(),
         resolvedAt: d.resolvedAt ? d.resolvedAt.toISOString() : null,
@@ -236,6 +278,10 @@ export async function updateEscalation(
         $set.status = patch.status;
         if (patch.status === "resolved") {
             $set.resolvedAt = new Date();
+            if (existing.liveTakeover?.active) {
+                $set["liveTakeover.active"] = false;
+                $set["liveTakeover.endedAt"] = new Date();
+            }
         }
     }
 
@@ -251,6 +297,78 @@ export async function updateEscalation(
 
     if (!updated) return { ok: false, reason: "not_found" };
     return { ok: true, record: mapDoc(updated) };
+}
+
+export type TakeoverResult =
+    | { ok: true; record: EscalationRecord }
+    | { ok: false; reason: "not_found" | "invalid_state" };
+
+export async function startTakeover(
+    id: string,
+    ownerId: string,
+    agentUserId: string,
+): Promise<TakeoverResult> {
+    if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(ownerId) || !Types.ObjectId.isValid(agentUserId)) {
+        return { ok: false, reason: "not_found" };
+    }
+    await ensureDbConnection();
+    const existing = await EscalationModel.findOne({
+        _id: new Types.ObjectId(id),
+        botOwnerId: new Types.ObjectId(ownerId),
+    }).lean<EscalationDoc | null>();
+    if (!existing) return { ok: false, reason: "not_found" };
+    if (existing.status === "resolved") {
+        return { ok: false, reason: "invalid_state" };
+    }
+
+    const $set: Record<string, unknown> = {
+        "liveTakeover.active": true,
+        "liveTakeover.agentUserId": new Types.ObjectId(agentUserId),
+        "liveTakeover.startedAt": new Date(),
+        "liveTakeover.endedAt": null,
+    };
+    if (existing.status === "open") {
+        $set.status = "in_progress";
+    }
+
+    const updated = await EscalationModel.findOneAndUpdate(
+        { _id: new Types.ObjectId(id), botOwnerId: new Types.ObjectId(ownerId) },
+        { $set },
+        { new: true },
+    ).lean<EscalationDoc | null>();
+    if (!updated) return { ok: false, reason: "not_found" };
+    return { ok: true, record: mapDoc(updated) };
+}
+
+export async function endTakeover(id: string, ownerId: string): Promise<TakeoverResult> {
+    if (!Types.ObjectId.isValid(id) || !Types.ObjectId.isValid(ownerId)) {
+        return { ok: false, reason: "not_found" };
+    }
+    await ensureDbConnection();
+    const updated = await EscalationModel.findOneAndUpdate(
+        { _id: new Types.ObjectId(id), botOwnerId: new Types.ObjectId(ownerId) },
+        {
+            $set: {
+                "liveTakeover.active": false,
+                "liveTakeover.endedAt": new Date(),
+            },
+        },
+        { new: true },
+    ).lean<EscalationDoc | null>();
+    if (!updated) return { ok: false, reason: "not_found" };
+    return { ok: true, record: mapDoc(updated) };
+}
+
+export async function findActiveTakeoverForSession(
+    widgetSessionId: string,
+): Promise<EscalationRecord | null> {
+    if (!widgetSessionId.trim()) return null;
+    await ensureDbConnection();
+    const row = await EscalationModel.findOne({
+        widgetSessionId: widgetSessionId.trim(),
+        "liveTakeover.active": true,
+    }).lean<EscalationDoc | null>();
+    return row ? mapDoc(row) : null;
 }
 
 export async function countOpenEscalationsForOwner(ownerId: string): Promise<number> {
