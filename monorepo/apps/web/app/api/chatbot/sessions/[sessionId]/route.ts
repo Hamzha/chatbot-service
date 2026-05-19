@@ -17,6 +17,7 @@ const updateSessionSchema = z
     name: z.string().optional(),
     documentIds: z.array(z.string().trim().min(1, "documentIds must contain valid string ids")).min(1, "documentIds must be a non-empty array").optional(),
     primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/, "primaryColor must be a valid hex color (e.g. #0f766e)").optional(),
+    autoEscalationEnabled: z.boolean().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: "No updates provided" });
 

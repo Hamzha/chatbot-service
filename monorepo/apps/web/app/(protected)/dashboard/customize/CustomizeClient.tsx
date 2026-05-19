@@ -15,6 +15,7 @@ type ChatbotRow = {
     name: string;
     primaryColor: string;
     selectedRagKeys: string[];
+    autoEscalationEnabled: boolean;
 };
 
 const DEFAULT_COLOR = "#0f766e";
@@ -70,6 +71,29 @@ export function CustomizeClient() {
         if (selected) {
             setPrimaryColor(selected.primaryColor || DEFAULT_COLOR);
             setSavedColor(selected.primaryColor || DEFAULT_COLOR);
+        }
+    }
+
+    async function handleToggleAutoEscalation(next: boolean) {
+        if (!selectedChatbotId) return;
+        const loadingId = toast.loading(next ? "Enabling auto-escalation…" : "Disabling auto-escalation…");
+        try {
+            const res = await fetch(`/api/chatbot/sessions/${encodeURIComponent(selectedChatbotId)}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ autoEscalationEnabled: next }),
+            });
+            const data = await parseJsonResponse<{ session?: ChatbotRow; error?: string }>(res);
+            if (!res.ok) {
+                throw new Error(data.error || "Failed to save");
+            }
+            setChatbots((prev) =>
+                prev.map((c) => (c.id === selectedChatbotId ? { ...c, autoEscalationEnabled: next } : c)),
+            );
+            toast.success(next ? "Auto-escalation enabled" : "Auto-escalation disabled", { id: loadingId });
+        } catch (err) {
+            toast.error(extractErrorMessage(err, "Failed to save"), { id: loadingId });
         }
     }
 
@@ -266,6 +290,28 @@ export function CustomizeClient() {
                             </div>
                         )}
                     </div>
+
+                    {selectedChatbot ? (
+                        <div className="glass-strong mt-5 rounded-2xl p-5 sm:p-6">
+                            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-800">
+                                Auto-escalation
+                            </h2>
+                            <p className="mt-1 text-xs text-slate-600">
+                                When the bot can&apos;t find context for two replies in a row, automatically open an escalation ticket and notify you in the inbox.
+                            </p>
+                            <label className="mt-4 flex items-center gap-3">
+                                <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-slate-300"
+                                    checked={selectedChatbot.autoEscalationEnabled}
+                                    onChange={(e) => void handleToggleAutoEscalation(e.target.checked)}
+                                />
+                                <span className="text-sm font-medium text-slate-800">
+                                    Auto-escalate low-confidence chats
+                                </span>
+                            </label>
+                        </div>
+                    ) : null}
                 </section>
 
                 <section>

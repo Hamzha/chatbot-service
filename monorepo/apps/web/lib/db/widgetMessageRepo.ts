@@ -4,6 +4,10 @@ import { connectToDatabase } from "@/lib/db/client";
 
 export type WidgetMessageRole = "user" | "bot" | "agent" | "system";
 
+export type WidgetMessageMetadata = {
+    numContexts: number | null;
+};
+
 export type WidgetMessageRecord = {
     id: string;
     botId: string;
@@ -11,6 +15,7 @@ export type WidgetMessageRecord = {
     role: WidgetMessageRole;
     content: string;
     agentUserId: string | null;
+    metadata: WidgetMessageMetadata;
     createdAt: string;
 };
 
@@ -21,6 +26,7 @@ type WidgetMessageDoc = {
     role: WidgetMessageRole;
     content: string;
     agentUserId?: Types.ObjectId | null;
+    metadata?: { numContexts?: number | null } | null;
     createdAt: Date;
 };
 
@@ -53,6 +59,13 @@ const widgetMessageSchema = new Schema<WidgetMessageDoc>(
             ref: "User",
             default: null,
         },
+        metadata: {
+            type: new Schema(
+                { numContexts: { type: Number, default: null } },
+                { _id: false },
+            ),
+            default: () => ({ numContexts: null }),
+        },
     },
     { timestamps: { createdAt: true, updatedAt: false } },
 );
@@ -76,6 +89,7 @@ function mapDoc(d: WidgetMessageDoc): WidgetMessageRecord {
         role: d.role,
         content: d.content,
         agentUserId: d.agentUserId ? d.agentUserId.toString() : null,
+        metadata: { numContexts: d.metadata?.numContexts ?? null },
         createdAt: d.createdAt.toISOString(),
     };
 }
@@ -86,6 +100,7 @@ export type AppendWidgetMessageInput = {
     role: WidgetMessageRole;
     content: string;
     agentUserId?: string | null;
+    metadata?: { numContexts?: number | null };
 };
 
 export async function appendWidgetMessage(input: AppendWidgetMessageInput): Promise<WidgetMessageRecord> {
@@ -106,8 +121,29 @@ export async function appendWidgetMessage(input: AppendWidgetMessageInput): Prom
             input.agentUserId && Types.ObjectId.isValid(input.agentUserId)
                 ? new Types.ObjectId(input.agentUserId)
                 : null,
+        metadata: {
+            numContexts:
+                typeof input.metadata?.numContexts === "number" ? input.metadata.numContexts : null,
+        },
     });
     return mapDoc(doc.toObject() as WidgetMessageDoc);
+}
+
+export async function listLastBotWidgetMessages(
+    widgetSessionId: string,
+    limit: number,
+): Promise<WidgetMessageRecord[]> {
+    if (!widgetSessionId.trim()) return [];
+    await ensureDbConnection();
+    const cap = Math.min(Math.max(limit, 1), 20);
+    const rows = await WidgetMessageModel.find({
+        widgetSessionId: widgetSessionId.trim(),
+        role: "bot",
+    })
+        .sort({ createdAt: -1 })
+        .limit(cap)
+        .lean<WidgetMessageDoc[]>();
+    return rows.map(mapDoc);
 }
 
 export async function appendWidgetExchange(

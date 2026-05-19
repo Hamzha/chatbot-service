@@ -2,6 +2,10 @@
 
 import { use, useEffect, useMemo, useRef, useState } from "react";
 import { parseJsonResponse } from "@/lib/chatbot/parseJsonResponse";
+import {
+    AUTO_ESCALATION_SYSTEM_PROMPT,
+    AUTO_ESCALATION_THANKS_PROMPT,
+} from "@/lib/chatbot/escalationConstants";
 
 type WidgetConfig = {
     primaryColor?: string;
@@ -77,6 +81,7 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
     const [escalation, setEscalation] = useState<EscalationView>({ kind: "hidden" });
     const [widgetSessionId, setWidgetSessionId] = useState<string>("");
     const [liveActive, setLiveActive] = useState(false);
+    const [autoEscalationPending, setAutoEscalationPending] = useState(false);
     const bottomRef = useRef<HTMLDivElement | null>(null);
     const lowConfidenceStreakRef = useRef(0);
     const escalationOfferedRef = useRef(false);
@@ -122,6 +127,29 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
 
     useEffect(() => {
         if (!botId || !widgetSessionId) return;
+        let cancelled = false;
+        fetch(
+            `/api/chatbot/widget/escalation/status?botId=${encodeURIComponent(
+                botId,
+            )}&widgetSessionId=${encodeURIComponent(widgetSessionId)}`,
+        )
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+                if (cancelled || !data) return;
+                if (data.hasOpenEscalation && !data.hasEmail && data.reason === "low_confidence") {
+                    setAutoEscalationPending(true);
+                }
+            })
+            .catch(() => {
+                /* ignore */
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [botId, widgetSessionId]);
+
+    useEffect(() => {
+        if (!botId || !widgetSessionId) return;
         const since = new Date().toISOString();
         const es = new EventSource(
             `/api/chatbot/widget/stream?botId=${encodeURIComponent(botId)}&widgetSessionId=${encodeURIComponent(
@@ -145,6 +173,11 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
                             ...cur,
                             { id: `srv-${m.id}`, role: "system", text: m.content },
                         ]);
+                        if (m.content === AUTO_ESCALATION_SYSTEM_PROMPT) {
+                            setAutoEscalationPending(true);
+                        } else if (m.content === AUTO_ESCALATION_THANKS_PROMPT) {
+                            setAutoEscalationPending(false);
+                        }
                     }
                 } else if (data.type === "takeover") {
                     setLiveActive(data.active);
@@ -353,6 +386,14 @@ export default function WidgetPage({ params }: { params: Promise<{ botId: string
                     <div ref={bottomRef} />
                 </div>
 
+                {autoEscalationPending && escalation.kind === "hidden" ? (
+                    <AutoEscalationEmailPrompt
+                        botId={botId}
+                        widgetSessionId={widgetSessionId}
+                        primaryColor={primaryColor}
+                        onSubmitted={() => setAutoEscalationPending(false)}
+                    />
+                ) : null}
                 {escalation.kind === "form" ? (
                     <EscalationFormOverlay
                         botId={botId}
@@ -540,6 +581,81 @@ function EscalationFormOverlay(props: {
                 </button>
             </form>
         </div>
+    );
+}
+
+function AutoEscalationEmailPrompt(props: {
+    botId: string;
+    widgetSessionId: string;
+    primaryColor: string;
+    onSubmitted: () => void;
+}) {
+    const { botId, widgetSessionId, primaryColor, onSubmitted } = props;
+    const [email, setEmail] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (submitting) return;
+        const trimmed = email.trim();
+        if (!EMAIL_REGEX.test(trimmed)) {
+            setError("Please enter a valid email address.");
+            return;
+        }
+        setSubmitting(true);
+        setError(null);
+        try {
+            const res = await fetch("/api/chatbot/widget/escalation/contact", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ botId, widgetSessionId, email: trimmed }),
+            });
+            const data = await parseJsonResponse<{ ok?: boolean; error?: string }>(res);
+            if (!res.ok || !data.ok) {
+                throw new Error(data.error || "Could not save your email.");
+            }
+            onSubmitted();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : "Could not save your email.");
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <form
+            onSubmit={onSubmit}
+            className="mx-auto mt-2 flex max-w-[90%] flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"
+        >
+            <label htmlFor="auto-esc-email" className="text-[11px] font-semibold uppercase tracking-wide text-slate-600">
+                Your email
+            </label>
+            <div className="flex gap-2">
+                <input
+                    id="auto-esc-email"
+                    type="email"
+                    required
+                    maxLength={254}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="min-h-9 flex-1 rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none"
+                    disabled={submitting}
+                />
+                <button
+                    type="submit"
+                    disabled={submitting || !email.trim()}
+                    className="min-h-9 rounded-xl px-3 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ backgroundColor: primaryColor }}
+                >
+                    {submitting ? "..." : "Connect"}
+                </button>
+            </div>
+            {error ? (
+                <p className="text-xs text-rose-600">{error}</p>
+            ) : null}
+        </form>
     );
 }
 
