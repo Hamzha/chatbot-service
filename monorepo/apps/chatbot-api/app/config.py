@@ -62,6 +62,12 @@ class Settings(BaseSettings):
 
     chroma_persist_dir: str = str(MONOREPO_ROOT / "chroma_data")
     chroma_collection: str = "chatbot_chunks"
+    #: Chroma distance above which a retrieved chunk is considered irrelevant.
+    #: `num_contexts` in RAG responses counts only chunks with distance <= this value,
+    #: so callers (e.g. widget auto-escalation) can detect "no useful context" answers
+    #: even when retrieval still returns top_k chunks. Default tuned for L2 with
+    #: normalized embeddings (cos_sim ~0.5).
+    rag_relevance_max_distance: float = 1.0
 
     cors_allow_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     max_upload_size_bytes: int = 10 * 1024 * 1024

@@ -2,10 +2,24 @@ from __future__ import annotations
 
 import hashlib
 
+from app.config import settings
 from app.contracts import IngestInput, IngestOutput, IngestTextInput, QueryInput, QueryOutput
 from app.pdf_loader import chunk_text, load_and_chunk_pdf
 from app.providers import Embedder, Generator
 from app.vector_store import ChromaVectorStore
+
+
+def _count_relevant_contexts(contexts, max_distance: float) -> int:
+    """Count chunks whose Chroma distance is within the relevance threshold.
+
+    Chunks without a distance (older payloads, embedding errors) are treated as
+    relevant to avoid false-positive escalations.
+    """
+    n = 0
+    for c in contexts:
+        if c.distance is None or c.distance <= max_distance:
+            n += 1
+    return n
 
 
 def _deterministic_id(user_id: str, source_id: str, i: int) -> str:
@@ -111,6 +125,6 @@ class QueryRagUseCase:
         return QueryOutput(
             answer=answer.strip(),
             sources=sorted({c.source for c in contexts}),
-            num_contexts=len(contexts),
+            num_contexts=_count_relevant_contexts(contexts, settings.rag_relevance_max_distance),
         )
 

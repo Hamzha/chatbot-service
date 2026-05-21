@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class RetrievedContext(BaseModel):
     text: str
     source: str
+    distance: float | None = None
 
 
 class RagTextIngestRequest(BaseModel):

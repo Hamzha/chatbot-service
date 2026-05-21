@@ -64,4 +64,5 @@ class IngestOutput(BaseModel):
 class RetrievedContext(BaseModel):
     text: str
     source: str
+    distance: float | None = None
 
