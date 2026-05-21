@@ -68,12 +68,19 @@ class ChromaVectorStore:
         )
         docs = (res.get("documents") or [[]])[0]
         metas = (res.get("metadatas") or [[]])[0]
+        dists = (res.get("distances") or [[]])[0]
         output: list[RetrievedContext] = []
         for i, text in enumerate(docs):
             source = "unknown"
             if i < len(metas) and isinstance(metas[i], dict):
                 source = str(metas[i].get("source", "unknown"))
-            output.append(RetrievedContext(text=text, source=source))
+            distance: float | None = None
+            if i < len(dists) and dists[i] is not None:
+                try:
+                    distance = float(dists[i])
+                except (TypeError, ValueError):
+                    distance = None
+            output.append(RetrievedContext(text=text, source=source, distance=distance))
         return output
 
     def list_sources(self, user_id: str) -> list[dict[str, int | str]]:

@@ -15,6 +15,7 @@ export type ChatSessionRecord = {
     name: string;
     primaryColor: string;
     selectedRagKeys: string[];
+    autoEscalationEnabled: boolean;
     createdAt: string;
     updatedAt: string;
 };
@@ -25,6 +26,7 @@ type ChatSessionDoc = {
     name: string;
     primaryColor: string;
     selectedRagKeys: string[];
+    autoEscalationEnabled?: boolean;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -55,6 +57,11 @@ const chatSessionSchema = new Schema<ChatSessionDoc>(
             required: true,
             default: [],
         },
+        autoEscalationEnabled: {
+            type: Boolean,
+            required: true,
+            default: true,
+        },
     },
     { timestamps: true },
 );
@@ -76,6 +83,7 @@ function mapSession(r: ChatSessionDoc): ChatSessionRecord {
         name: r.name,
         primaryColor: r.primaryColor,
         selectedRagKeys: [...r.selectedRagKeys],
+        autoEscalationEnabled: r.autoEscalationEnabled ?? true,
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
     };
@@ -183,17 +191,25 @@ export async function resolveSessionSelectedDocuments(
 export async function updateChatSession(
     userId: string,
     sessionId: string,
-    patch: { name?: string; documentIds?: string[]; primaryColor?: string },
+    patch: { name?: string; documentIds?: string[]; primaryColor?: string; autoEscalationEnabled?: boolean },
 ): Promise<ChatSessionRecord | null> {
     await ensureDbConnection();
     const uid = new Types.ObjectId(userId);
     const sid = new Types.ObjectId(sessionId);
-    const update: { name?: string; primaryColor?: string; selectedRagKeys?: string[] } = {};
+    const update: {
+        name?: string;
+        primaryColor?: string;
+        selectedRagKeys?: string[];
+        autoEscalationEnabled?: boolean;
+    } = {};
     if (patch.name !== undefined) {
         update.name = patch.name.trim() || "Untitled chat";
     }
     if (patch.primaryColor !== undefined) {
         update.primaryColor = patch.primaryColor;
+    }
+    if (patch.autoEscalationEnabled !== undefined) {
+        update.autoEscalationEnabled = Boolean(patch.autoEscalationEnabled);
     }
     if (patch.documentIds !== undefined) {
         const keys = await resolveRagKeys(userId, patch.documentIds);

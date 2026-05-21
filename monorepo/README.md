@@ -436,6 +436,18 @@ Lets a visitor request a human handoff from inside the widget. v1 is asynchronou
 - One email per new ticket, sent via Resend from `EMAIL_FROM` to the bot owner's account email.
 - Template: `apps/web/lib/email/escalationEmail.ts`. Failures are logged and swallowed; the ticket still lands in the inbox.
 
+### Auto-escalation (v3)
+
+The platform watches chat quality server-side and opens an escalation ticket on the visitor's behalf when the bot is failing — no "Talk to human" click required.
+
+- **Signal**: server-side in `POST /api/chatbot/widget/chat`. After each bot reply, `metadata.numContexts` is persisted on the bot `widgetMessage` row. `lib/chatbot/autoEscalation.ts:maybeAutoEscalate` reads the last two bot messages for the `widgetSessionId`; if both have `numContexts === 0` and no open/in-progress escalation exists, it creates a ticket with `reason: "low_confidence"` and empty contact fields.
+- **Per-chatbot toggle**: `ChatSession.autoEscalationEnabled` (default `true`). The customize page (`/dashboard/customize`) ships a toggle that PATCHes this field via `/api/chatbot/sessions/[sessionId]`.
+- **Visitor UX**: when the auto-escalation system bubble lands in the widget, an inline email-capture form renders below the chat. `POST /api/chatbot/widget/escalation/contact` patches the ticket's `contact.email` and pushes a thank-you system bubble back through the SSE stream. The owner also gets the standard escalation email (deferred until contact is collected, to avoid notifying with no reply path).
+- **Anonymous contact**: `escalations.contact.name` and `contact.email` are now optional. The inbox + ticket views render "Anonymous visitor — auto-escalated, awaiting email" until the visitor provides one.
+- **Owner notifications**: `GET /api/chatbot/escalations/notifications/stream` is an SSE channel (poll-over-Mongo, same pattern as v2) that pushes `new` and `count` events to any open dashboard tab. `EscalationNotificationsProvider` (mounted in `AppShell`) consumes it and drives a Sonner toast plus a numeric badge next to the Inbox sidebar item via `useEscalationNotifications().openCount`. `GET /api/chatbot/escalations/unread-count` provides the initial value.
+- **Constants**: `lib/chatbot/escalationConstants.ts` exports the system-bubble text shared between server (when emitting) and widget (when matching to render the email form).
+- **Bot suppression after auto-escalation**: once the owner takes over (v2 flow), the existing takeover suppression in `/api/chatbot/widget/chat` mutes the bot automatically — v3 reuses v2 mid-flight.
+
 ### Live takeover (v2)
 
 Owner can take over an escalation ticket and chat with the visitor in real time from the inbox detail page. While takeover is active the bot is muted on that widget session; ending the takeover (or resolving the ticket) restores the bot.

@@ -119,11 +119,19 @@ export function InboxClient() {
                                     <td className="px-4 py-3 text-slate-700">
                                         {new Date(row.createdAt).toLocaleString()}
                                     </td>
-                                    <td className="px-4 py-3 font-medium text-slate-900">{row.contact.name}</td>
+                                    <td className="px-4 py-3 font-medium text-slate-900">
+                                        {row.contact.name || (row.contact.email ? "Visitor" : (
+                                            <span className="italic text-slate-500">Anonymous</span>
+                                        ))}
+                                    </td>
                                     <td className="px-4 py-3 text-slate-700">
-                                        <a className="hover:underline" href={`mailto:${row.contact.email}`}>
-                                            {row.contact.email}
-                                        </a>
+                                        {row.contact.email ? (
+                                            <a className="hover:underline" href={`mailto:${row.contact.email}`}>
+                                                {row.contact.email}
+                                            </a>
+                                        ) : (
+                                            <span className="italic text-slate-400">—</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 text-slate-700">{REASON_LABEL[row.reason]}</td>
                                     <td className="px-4 py-3">

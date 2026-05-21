@@ -248,12 +248,31 @@ export function TicketClient({ ticketId }: { ticketId: string }) {
                     <div className="space-y-6">
                         <section className="glass-strong rounded-2xl p-5">
                             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-slate-600">Contact</h2>
-                            <p className="text-base font-semibold text-slate-900">{record.contact.name}</p>
-                            <p className="mt-1 text-sm">
-                                <a className="text-brand-800 hover:underline" href={`mailto:${record.contact.email}`}>
-                                    {record.contact.email}
-                                </a>
-                            </p>
+                            {record.contact.name || record.contact.email ? (
+                                <>
+                                    <p className="text-base font-semibold text-slate-900">
+                                        {record.contact.name || "Visitor"}
+                                    </p>
+                                    {record.contact.email ? (
+                                        <p className="mt-1 text-sm">
+                                            <a className="text-brand-800 hover:underline" href={`mailto:${record.contact.email}`}>
+                                                {record.contact.email}
+                                            </a>
+                                        </p>
+                                    ) : (
+                                        <p className="mt-1 text-xs italic text-slate-500">
+                                            Email not yet provided
+                                        </p>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-base font-semibold text-slate-900">
+                                    Anonymous visitor
+                                    <span className="ml-2 text-xs font-normal italic text-slate-500">
+                                        (auto-escalated — awaiting email)
+                                    </span>
+                                </p>
+                            )}
                             {record.message ? (
                                 <>
                                     <h3 className="mt-5 mb-2 text-sm font-semibold uppercase tracking-wider text-slate-600">

@@ -8,6 +8,7 @@ import { validateWidgetRequest } from "@/lib/chatbot/validateWidgetRequest";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 import { appendWidgetMessage } from "@/lib/db/widgetMessageRepo";
 import { findActiveTakeoverForSession } from "@/lib/db/escalationRepo";
+import { maybeAutoEscalate } from "@/lib/chatbot/autoEscalation";
 
 const widgetChatSchema = z.object({
   botId: z.unknown(),
@@ -139,6 +140,7 @@ async function postWidgetChat(request: Request) {
   }
 
   const replyText = data.reply || data.answer || data.output_text || "Thanks for your message.";
+  const numContexts = typeof data.num_contexts === "number" ? data.num_contexts : 0;
 
   if (widgetSessionId) {
     try {
@@ -153,16 +155,29 @@ async function postWidgetChat(request: Request) {
         widgetSessionId,
         role: "bot",
         content: replyText,
+        metadata: { numContexts },
       });
     } catch (err) {
       console.error("[widget:chat] failed to persist exchange", err);
     }
+
+    void maybeAutoEscalate({
+      chatbot: {
+        id: chatbot.id,
+        userId: chatbot.userId,
+        autoEscalationEnabled: chatbot.autoEscalationEnabled,
+      },
+      widgetSessionId,
+      currentBotMessageNumContexts: numContexts,
+    }).catch((err) => {
+      console.error("[widget:chat] auto-escalation check failed", err);
+    });
   }
 
   return NextResponse.json({
     reply: replyText,
     sources: data.sources ?? [],
-    num_contexts: data.num_contexts ?? 0,
+    num_contexts: numContexts,
     backend: useChatbotApi ? "chatbot-api" : "model-gateway-api",
   });
 }

@@ -4,6 +4,7 @@ import { MobileTopBar } from "./MobileTopBar";
 import { SidebarDrawer } from "./SidebarDrawer";
 import { SiteFooter } from "./SiteFooter";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { EscalationNotificationsProvider } from "@/components/dashboard/EscalationNotificationsProvider";
 
 type AppShellProps = {
     userName: string;
@@ -22,23 +23,26 @@ type AppShellProps = {
  * All shared state (drawer open/close, isMobile) lives in `AppShellContext`.
  */
 export function AppShell({ userName, userEmail, permissions, children }: AppShellProps) {
+    const canReadEscalations = permissions.includes("escalations:read");
     return (
         <AppShellProvider>
-            <div className="relative flex min-h-screen w-full">
-                <SidebarDrawer>
-                    <Sidebar userName={userName} userEmail={userEmail} permissions={permissions} />
-                </SidebarDrawer>
+            <EscalationNotificationsProvider enabled={canReadEscalations}>
+                <div className="relative flex min-h-screen w-full">
+                    <SidebarDrawer>
+                        <Sidebar userName={userName} userEmail={userEmail} permissions={permissions} />
+                    </SidebarDrawer>
 
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <MobileTopBar userName={userName} />
-                    <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
-                        {children}
-                    </main>
-                    <div className="px-4 pb-8 pt-6 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8">
-                        <SiteFooter width="7xl" />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <MobileTopBar userName={userName} />
+                        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+                            {children}
+                        </main>
+                        <div className="px-4 pb-8 pt-6 sm:px-6 sm:pb-10 sm:pt-8 lg:px-8">
+                            <SiteFooter width="7xl" />
+                        </div>
                     </div>
                 </div>
-            </div>
+            </EscalationNotificationsProvider>
         </AppShellProvider>
     );
 }

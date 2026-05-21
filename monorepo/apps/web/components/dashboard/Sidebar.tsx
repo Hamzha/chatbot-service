@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import { useAppShell } from "@/components/shell/AppShellContext";
+import { useEscalationNotifications } from "@/components/dashboard/EscalationNotificationsProvider";
 import { DASHBOARD_SIDEBAR_NAV } from "@/lib/dashboard/dashboardSidebarNav";
 
 const NAV_ICONS: Record<(typeof DASHBOARD_SIDEBAR_NAV)[number]["id"], ReactNode> = {
@@ -107,6 +108,7 @@ export function Sidebar({
 }) {
     const pathname = usePathname();
     const { closeSidebar } = useAppShell();
+    const { openCount } = useEscalationNotifications();
     const permSet = useMemo(() => new Set(permissions), [permissions]);
     const visibleNav = useMemo(
         () => navItems.filter((item) => permSet.has(item.permission)),
@@ -139,6 +141,7 @@ export function Sidebar({
                         item.href === "/dashboard"
                             ? pathname === "/dashboard"
                             : pathname.startsWith(item.href);
+                    const showBadge = item.id === "nav.dashboard.inbox" && openCount > 0;
 
                     return (
                         <Link
@@ -153,7 +156,15 @@ export function Sidebar({
                             aria-current={isActive ? "page" : undefined}
                         >
                             {item.icon}
-                            <span className="truncate">{item.label}</span>
+                            <span className="truncate flex-1">{item.label}</span>
+                            {showBadge ? (
+                                <span
+                                    className="ml-auto inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[11px] font-semibold text-white"
+                                    aria-label={`${openCount} open escalations`}
+                                >
+                                    {openCount > 99 ? "99+" : openCount}
+                                </span>
+                            ) : null}
                         </Link>
                     );
                 })}

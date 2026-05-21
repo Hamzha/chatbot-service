@@ -85,8 +85,8 @@ const escalationSchema = new Schema<EscalationDoc>(
         chatbotId: { type: Schema.Types.ObjectId, required: true, ref: "ChatbotChatSession", index: true },
         widgetSessionId: { type: String, required: true, trim: true, maxlength: 128 },
         contact: {
-            name: { type: String, required: true, trim: true, maxlength: 100 },
-            email: { type: String, required: true, lowercase: true, trim: true, maxlength: 254 },
+            name: { type: String, required: false, default: "", trim: true, maxlength: 100 },
+            email: { type: String, required: false, default: "", lowercase: true, trim: true, maxlength: 254 },
         },
         reason: { type: String, required: true, enum: ["user_request", "low_confidence", "manual"] },
         message: { type: String, default: "", maxlength: 1000 },
@@ -151,7 +151,7 @@ export type CreateEscalationInput = {
     botOwnerId: string;
     chatbotId: string;
     widgetSessionId: string;
-    contact: { name: string; email: string };
+    contact?: { name?: string; email?: string };
     reason: EscalationReason;
     message: string;
     transcriptSnapshot: EscalationTranscriptEntry[];
@@ -159,14 +159,13 @@ export type CreateEscalationInput = {
 
 export async function createEscalation(input: CreateEscalationInput): Promise<EscalationRecord> {
     await ensureDbConnection();
+    const name = input.contact?.name?.trim() ?? "";
+    const email = input.contact?.email?.trim().toLowerCase() ?? "";
     const doc = await EscalationModel.create({
         botOwnerId: new Types.ObjectId(input.botOwnerId),
         chatbotId: new Types.ObjectId(input.chatbotId),
         widgetSessionId: input.widgetSessionId.trim(),
-        contact: {
-            name: input.contact.name.trim(),
-            email: input.contact.email.trim().toLowerCase(),
-        },
+        contact: { name, email },
         reason: input.reason,
         message: input.message.trim(),
         transcriptSnapshot: input.transcriptSnapshot.map((e) => ({
@@ -179,6 +178,33 @@ export async function createEscalation(input: CreateEscalationInput): Promise<Es
         resolvedAt: null,
     });
     return mapDoc(doc.toObject() as EscalationDoc);
+}
+
+export type SetEscalationContactResult =
+    | { ok: true; record: EscalationRecord }
+    | { ok: false; reason: "not_found" };
+
+export async function setContactForOpenSessionEscalation(
+    widgetSessionId: string,
+    contact: { name?: string; email: string },
+): Promise<SetEscalationContactResult> {
+    if (!widgetSessionId.trim()) return { ok: false, reason: "not_found" };
+    await ensureDbConnection();
+    const email = contact.email.trim().toLowerCase();
+    const $set: Record<string, unknown> = { "contact.email": email };
+    if (typeof contact.name === "string" && contact.name.trim()) {
+        $set["contact.name"] = contact.name.trim();
+    }
+    const updated = await EscalationModel.findOneAndUpdate(
+        {
+            widgetSessionId: widgetSessionId.trim(),
+            status: { $in: ["open", "in_progress"] },
+        },
+        { $set },
+        { new: true, sort: { createdAt: -1 } },
+    ).lean<EscalationDoc | null>();
+    if (!updated) return { ok: false, reason: "not_found" };
+    return { ok: true, record: mapDoc(updated) };
 }
 
 export async function findOpenEscalationForSession(widgetSessionId: string): Promise<EscalationRecord | null> {
@@ -369,6 +395,27 @@ export async function findActiveTakeoverForSession(
         "liveTakeover.active": true,
     }).lean<EscalationDoc | null>();
     return row ? mapDoc(row) : null;
+}
+
+export async function listEscalationsSinceForOwner(
+    ownerId: string,
+    sinceIso: string | null,
+    limit: number = 50,
+): Promise<EscalationRecord[]> {
+    if (!Types.ObjectId.isValid(ownerId)) return [];
+    await ensureDbConnection();
+    const filter: Record<string, unknown> = { botOwnerId: new Types.ObjectId(ownerId) };
+    if (sinceIso) {
+        const since = new Date(sinceIso);
+        if (!Number.isNaN(since.getTime())) {
+            filter.createdAt = { $gt: since };
+        }
+    }
+    const rows = await EscalationModel.find(filter)
+        .sort({ createdAt: 1 })
+        .limit(Math.min(Math.max(limit, 1), 200))
+        .lean<EscalationDoc[]>();
+    return rows.map(mapDoc);
 }
 
 export async function countOpenEscalationsForOwner(ownerId: string): Promise<number> {
