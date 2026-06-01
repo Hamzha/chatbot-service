@@ -25,8 +25,18 @@ flowchart LR
 
 Optional **`monorepo/.env.shared`** (from `.env.shared.example`) supplies shared defaults for **`chatbot-api`** and **`model-gateway-api`** (embedding backend, Chroma collection, etc.); each app’s `.env` / `.env.local` overrides.
 
+## Architecture Decisions
+
+- [`decisions/keep-rag-ingest-in-chatbot-api.md`](./decisions/keep-rag-ingest-in-chatbot-api.md) — why platform ingest stays on `chatbot-api` and we do not merge ingest into both backends.
+
+## Implementation Plans
+
+- [`plans/chat-conversation-tabs.md`](./plans/chat-conversation-tabs.md) — ChatGPT-style conversation threads per chatbot (dashboard).
+
+
 ## Conventions
 
 - Keep docs in this folder as the source of truth.
 - Update app docs whenever endpoint behavior, env vars, or runtime flows change.
 - Keep app-specific details under `docs/apps/<app>/`.
+- Record significant architecture choices under `docs/decisions/`.
