@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { upstreamError, validationError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
-import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
+import {
+  getRagServiceBaseUrl,
+  ragDeleteSourceRequestUrl,
+  ragUserHeaders,
+} from "@/lib/chatbot/ragService";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
@@ -24,14 +28,15 @@ async function deleteSource(
     return validationError("Missing sourceId");
   }
   try {
-    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/sources/${encodeURIComponent(sourceId.trim())}`, {
+    const baseUrl = getRagServiceBaseUrl();
+    const res = await fetch(ragDeleteSourceRequestUrl(baseUrl, userId, sourceId.trim()), {
       method: "DELETE",
-      headers: { "x-user-id": userId },
+      headers: ragUserHeaders(userId),
     });
     const text = await res.text();
     return proxyChatbotResponse(res, text);
   } catch (error) {
-    return upstreamError(error, "Cannot reach chatbot service");
+    return upstreamError(error, "Cannot reach RAG service");
   }
 }
 

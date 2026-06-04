@@ -46,5 +46,8 @@ npm run test --workspace=model-gateway-api
 
 - Ensure `OPEN_ROUTER_API_KEY` has access to configured chat and embedding models.
 - If embedding fails, verify **`EMBEDDING_BACKEND`** and the matching model vars (`EMBEDDING_MODEL` vs `OLLAMA_EMBEDDING_MODEL`).
-- Use **`monorepo/.env.shared`** to keep **`CHROMA_COLLECTION`** (and optionally persist dir) aligned with **`chatbot-api`** when both services read the same index.
-- For local parity with `web`, ensure `MODEL_GATEWAY_API_URL` points to this service.
+- **`web`** routes all RAG traffic here when **`USE_CHATBOT_API=false`** (`apps/web/lib/chatbot/ragService.ts`).
+- Use **`monorepo/.env.shared`** for **`CHROMA_COLLECTION`**, **`CHROMA_PERSIST_DIR`**, and **`EMBEDDING_*`** — must match **`chatbot-api`** if you ever switch the web toggle on the same Chroma data.
+- Relative **`CHROMA_PERSIST_DIR`** resolves from the **monorepo root** (default `monorepo/chroma_data`).
+- For local dev with `web`, set `MODEL_GATEWAY_API_URL=http://127.0.0.1:8003` and `USE_CHATBOT_API=false` in `apps/web/.env.local`.
+- No Inngest process is needed for ingest on this path.

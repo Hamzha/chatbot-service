@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { internalServerError, notFoundError, upstreamError, validationError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
-import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
+import {
+    getRagServiceBaseUrl,
+    ragDeleteSourceRequestUrl,
+    ragListSourcesRequestUrl,
+    ragUserHeaders,
+} from "@/lib/chatbot/ragService";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import {
     deleteChatbotDocumentById,
@@ -34,9 +39,9 @@ async function augmentSiteKeysFromChroma(
     const origin = siteOriginKey.trim();
     if (!origin || !isHttpVectorSourceId(origin)) return;
     try {
-        const res = await fetch(`${baseUrl}/v1/sources`, {
+        const res = await fetch(ragListSourcesRequestUrl(baseUrl, userId), {
             method: "GET",
-            headers: { "x-user-id": userId },
+            headers: ragUserHeaders(userId),
         });
         const text = await res.text();
         if (!res.ok || !text.trim()) return;
@@ -56,9 +61,9 @@ async function deleteChromaSource(
     userId: string,
     key: string,
 ): Promise<VectorDeletionFailure | null> {
-    const res = await fetch(`${baseUrl}/v1/sources/${encodeURIComponent(key)}`, {
+    const res = await fetch(ragDeleteSourceRequestUrl(baseUrl, userId, key), {
         method: "DELETE",
-        headers: { "x-user-id": userId },
+        headers: ragUserHeaders(userId),
     });
     if (res.ok) return null;
     const detail = await res.text().catch(() => "");
@@ -105,7 +110,7 @@ async function deleteDocumentById(
               ]
             : [existing.ragSourceKey.trim()].filter((k) => k.length > 0);
 
-    const baseUrl = getChatbotApiBaseUrl();
+    const baseUrl = getRagServiceBaseUrl();
     if (existing.kind === "site") {
         const merged = new Set(keysToDelete.filter((k) => k.length > 0));
         await augmentSiteKeysFromChroma(baseUrl, userId, existing.ragSourceKey, merged);
@@ -126,7 +131,7 @@ async function deleteDocumentById(
             }
         }
     } catch (error) {
-        return upstreamError(error, "Cannot reach chatbot service");
+        return upstreamError(error, "Cannot reach RAG service");
     }
 
     if (failures.length > 0) {

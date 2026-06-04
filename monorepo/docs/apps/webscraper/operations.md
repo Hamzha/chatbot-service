@@ -36,4 +36,19 @@ Note: lint/check-type scripts are placeholders in this workspace.
 - Dynamic mode needs Playwright Chromium installed (`npm run install:playwright --workspace=webscraper`).
 - Keep `SCRAPER_ALLOWED_DOMAINS` empty for unrestricted local testing, or set strict values for production.
 - If consumers use API key auth, ensure they send `X-API-Key`.
-- **`web`** forwards extracted text to **`chatbot-api`** for embedding; ensure **`web`** `CHATBOT_API_URL` and the Python apps’ **`.env.shared`** / Chroma settings match the ingest path you use for RAG.
+
+### Downstream RAG (via `web`)
+
+**`webscraper` does not write to Chroma.** After scrape/crawl, **`web`** indexes text on the active RAG backend:
+
+| `USE_CHATBOT_API` (in `apps/web`) | Embedding target |
+| --- | --- |
+| `true` | `chatbot-api` `POST /v1/ingest-text` |
+| `false` | `model-gateway-api` `POST /api/rag/ingest-text` |
+
+Ensure:
+
+1. **`web`** env matches the backend you run (`CHATBOT_API_URL` vs `MODEL_GATEWAY_API_URL`).
+2. **`monorepo/.env.shared`** sets the same **`CHROMA_*`** and **`EMBEDDING_*`** on both Python apps so vectors stay compatible.
+
+See [`../web/operations.md`](../web/operations.md) and root [`README.md`](../../../README.md).

@@ -2,9 +2,14 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Environment
 
-Copy [.env.example](.env.example) to `.env.local` and set `USE_CHATBOT_API=true` to route the public widget to chatbot-api. Leave it unset or `false` to use model-gateway-api.
+Copy [.env.example](.env.example) to `.env.local`. **`USE_CHATBOT_API`** selects the backend for **chat, ingest, scrape→vectors, and vector deletes**:
 
-Ingest is still routed to chatbot-api: `POST /api/chatbot/ingest` proxies to `${CHATBOT_API_URL}/v1/ingest` (Inngest-backed flow).
+- `true` → `chatbot-api` (`CHATBOT_API_URL`, Inngest for PDF ingest)
+- `false` → `model-gateway-api` (`MODEL_GATEWAY_API_URL`, sync ingest)
+
+Both Python apps share Chroma via **`monorepo/.env.shared`** (`CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION`).
+
+Full routing tables and runbooks: [`../../README.md`](../../README.md) (section **RAG & ingest routing**) and [`../../docs/apps/web/operations.md`](../../docs/apps/web/operations.md).
 
 ## Getting Started
 

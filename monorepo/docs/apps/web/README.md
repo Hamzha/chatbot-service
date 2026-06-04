@@ -22,9 +22,18 @@
 
 ## Key Integrations
 
-- **`chatbot-api`** — always the target for **ingest**, **scrape/crawl text indexing**, **source list/delete** used by document APIs (`CHATBOT_API_URL` / `NEXT_PUBLIC_CHATBOT_API_BASE_URL`). Dashboard **chat** also uses it when **`USE_CHATBOT_API=true`**.
-- **`model-gateway-api`** — dashboard **chat** when **`USE_CHATBOT_API=false`** (sync + synthetic jobs).
-- **`webscraper`** — scrape and crawl HTTP service; results are persisted and forwarded to **`chatbot-api`** for embeddings.
+**`USE_CHATBOT_API`** selects one Python backend for **chat** and **RAG** (no separate ingest service):
+
+| Toggle | Service | Chat | Ingest / vectors |
+| --- | --- | --- | --- |
+| `true` | **`chatbot-api`** | `/v1/query` (Inngest) | `/v1/ingest`, `/v1/ingest-text`, `/v1/sources` |
+| `false` | **`model-gateway-api`** | `/api/chat/completions` (sync) | `/api/rag/*` (sync) |
+
+- **`webscraper`** — scrape and crawl; `web` forwards text to the **active** RAG backend for embedding.
+- **Shared Chroma** — both Python apps default to `monorepo/chroma_data` via **`monorepo/.env.shared`** (`CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION`, `EMBEDDING_*`).
+- **Routing helper** — `apps/web/lib/chatbot/ragService.ts`.
+
+See root [`README.md`](../../../README.md) (section **RAG & ingest routing**) and [`decisions/rag-ingest-per-backend-shared-chroma.md`](../../decisions/rag-ingest-per-backend-shared-chroma.md).
 
 ## Related Docs
 

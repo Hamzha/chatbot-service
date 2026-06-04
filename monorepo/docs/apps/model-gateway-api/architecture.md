@@ -44,4 +44,5 @@ flowchart LR
 
 - Chat service enforces `FREE_MODELS` from config for model selection.
 - RAG can be triggered from chat completions when `user_id` is supplied.
-- Chroma store location defaults to a monorepo-level `chroma_data` directory.
+- Chroma store location defaults to a monorepo-level `chroma_data` directory (shared with **`chatbot-api`** via **`monorepo/.env.shared`**).
+- When **`web`** sets **`USE_CHATBOT_API=false`**, all dashboard ingest, scrape→text, and vector deletes use **`/api/rag/*`** on this service (sync). See [`../web/architecture.md`](../web/architecture.md).

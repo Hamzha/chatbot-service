@@ -3,7 +3,11 @@ import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { internalServerError, notFoundError, parseJsonBody, validationError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
-import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
+import {
+    getRagServiceBaseUrl,
+    ragListSourcesRequestUrl,
+    ragUserHeaders,
+} from "@/lib/chatbot/ragService";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import {
     finalizeChatbotDocument,
@@ -24,9 +28,10 @@ function isWebScrapeVectorSourceId(source: string): boolean {
 /** When Mongo has no rows yet, copy non-URL sources from the chatbot (Chroma) into Mongo once. */
 async function backfillFromChatbotIfEmpty(userId: string): Promise<void> {
     try {
-        const res = await fetch(`${getChatbotApiBaseUrl()}/v1/sources`, {
+        const baseUrl = getRagServiceBaseUrl();
+        const res = await fetch(ragListSourcesRequestUrl(baseUrl, userId), {
             method: "GET",
-            headers: { "x-user-id": userId },
+            headers: ragUserHeaders(userId),
         });
         const text = await res.text();
         if (!res.ok || !text.trim()) return;

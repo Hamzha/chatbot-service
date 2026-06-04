@@ -356,12 +356,13 @@ export function UploadDocumentClient() {
               className="glass rounded-2xl border-amber-300/60 p-4 text-sm text-amber-950 sm:p-5"
               role="alert"
             >
-              <p className="font-semibold">Chatbot backend unreachable</p>
+              <p className="font-semibold">RAG backend unreachable</p>
               <p className="mt-1 wrap-break-word whitespace-pre-wrap text-amber-900">{listError}</p>
               <p className="mt-2 text-xs text-amber-900/80">
-                From the monorepo root, start the API (port 8001 by default), then ensure{" "}
-                <code className="rounded bg-amber-100/80 px-1.5 py-0.5 font-mono">CHATBOT_API_URL</code> in the web app
-                matches that URL.
+                Start the active Python API from the monorepo (<code className="font-mono">npm run dev</code>). With{" "}
+                <code className="font-mono">USE_CHATBOT_API=true</code> use port 8001 and{" "}
+                <code className="font-mono">CHATBOT_API_URL</code>; otherwise port 8003 and{" "}
+                <code className="font-mono">MODEL_GATEWAY_API_URL</code>.
               </p>
             </div>
           )}

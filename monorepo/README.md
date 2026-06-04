@@ -24,7 +24,7 @@ This is an AI-powered chatbot platform with:
 
 - `USE_CHATBOT_API=true` routes **dashboard chat queries** (`POST /api/chatbot/query`) and the **public widget** chat path to `chatbot-api`.
 - `USE_CHATBOT_API=false` routes those flows to **`model-gateway-api`** (sync response + synthetic job ids for the same UI contract).
-- **Ingest, document library, and vector deletes** always use the URL from **`CHATBOT_API_URL`** (or **`NEXT_PUBLIC_CHATBOT_API_BASE_URL`**) — they talk to **`chatbot-api`** regardless of `USE_CHATBOT_API`, so scraped text and PDF ingest land in the same Chroma instance the web app lists and deletes.
+- **Ingest, document library, vector deletes, and scrape→text ingest** follow the same toggle as chat: **`USE_CHATBOT_API=true`** → **`chatbot-api`** (`/v1/ingest`, Inngest for PDF); **`false`** → **`model-gateway-api`** (`/api/rag/*`, sync ingest, no Inngest). Both services read/write **`monorepo/chroma_data`** by default via **`monorepo/.env.shared`** (`CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION`).
 
 ### Dashboard compatibility
 
@@ -35,6 +35,44 @@ This is an AI-powered chatbot platform with:
 
 - `chatbot-api` and `model-gateway-api` use the same Chroma persistence location and collection by default (see `monorepo/chroma_data` and `CHROMA_COLLECTION` in `.env.shared` / per-app env).
 - **Embedding dimensions must match** whatever wrote the vectors: if you change embedding model or backend, re-ingest or clear Chroma.
+- Relative `CHROMA_PERSIST_DIR` values in `.env.shared` resolve from the **monorepo root** in both Python apps (not each app’s cwd).
+
+### RAG & ingest routing (no separate ingest service)
+
+There is **no** standalone ingest microservice. Each Python backend exposes its own ingest APIs; **`web`** picks one via **`USE_CHATBOT_API`** (same flag as chat). Implementation: `apps/web/lib/chatbot/ragService.ts`.
+
+| `USE_CHATBOT_API` | Chat | PDF upload | Scrape/crawl → vectors | List/delete vectors |
+| --- | --- | --- | --- | --- |
+| `true` | `chatbot-api` `/v1/query` (Inngest) | `chatbot-api` `/v1/ingest` (Inngest) | `chatbot-api` `/v1/ingest-text` (sync) | `chatbot-api` `/v1/sources` |
+| `false` | `model-gateway-api` `/api/chat/completions` (sync) | `model-gateway-api` `/api/rag/ingest` (sync) | `model-gateway-api` `/api/rag/ingest-text` (sync) | `model-gateway-api` `/api/rag/sources` |
+
+**What you need running:**
+
+- **`USE_CHATBOT_API=false`** — `web` + **`model-gateway-api`** (+ `webscraper` if scraping). **No** `chatbot-api` or Inngest required for RAG.
+- **`USE_CHATBOT_API=true`** — `web` + **`chatbot-api`** + **`npm run dev:chatbot-inngest`** for **PDF** ingest and async chat jobs. Text scrape ingest is sync on chatbot-api.
+
+**Env (web `apps/web/.env.local`):**
+
+```env
+# Option A — model-gateway only (simplest local RAG)
+USE_CHATBOT_API=false
+MODEL_GATEWAY_API_URL=http://127.0.0.1:8003
+
+# Option B — chatbot-api + Inngest
+USE_CHATBOT_API=true
+CHATBOT_API_URL=http://127.0.0.1:8001
+```
+
+**Shared Chroma (`monorepo/.env.shared`):**
+
+```env
+CHROMA_COLLECTION=chatbot_chunks
+CHROMA_PERSIST_DIR=chroma_data
+EMBEDDING_BACKEND=openrouter
+EMBEDDING_MODEL=openai/text-embedding-3-small
+```
+
+See [`docs/decisions/rag-ingest-per-backend-shared-chroma.md`](docs/decisions/rag-ingest-per-backend-shared-chroma.md).
 
 ### Shared Python environment (`monorepo/.env.shared`)
 
@@ -102,7 +140,7 @@ flowchart TD
     W -->|scrape/crawl| S[webscraper :8000]
 ```
 
-Paths not shown as branches off **`USE_CHATBOT_API`**: PDF ingest, scrape/crawl **`/v1/ingest-text`**, and document/source HTTP calls from **`web`** always target **`CHATBOT_API_URL`** (same host as the diagram’s **`chatbot-api`** box when local).
+Ingest and document vector routes use the same **`USE_CHATBOT_API`** branch as chat (see diagram). Align **`EMBEDDING_*`** in **`.env.shared`** so both backends write compatible vectors into the shared Chroma directory.
 
 ## Setup
 
@@ -165,11 +203,13 @@ How it works:
 6. `web` proxies to `chatbot-api` `GET /v1/jobs/{event_id}`.
 7. `chatbot-api` fetches run status/output from Inngest and returns final answer.
 
-Ingest flow:
+Ingest flow (when `USE_CHATBOT_API=true`):
 
 - `POST /api/chatbot/ingest` in `web` forwards PDF to `chatbot-api /v1/ingest`.
 - `chatbot-api` saves upload and emits Inngest event `chatbot/ingest_pdf`.
 - Worker step chunks/embeds and stores data in Chroma.
+
+Text ingest (scrape/crawl) on this path uses `POST /v1/ingest-text` **synchronously** (no Inngest).
 
 Model provider behavior inside `chatbot-api`:
 
@@ -214,9 +254,28 @@ Typical config:
 - `CHATBOT_API_URL=https://<your-remote-chatbot-api>`
 - Remote env defines provider choice (`openai` or `ollama`) and Inngest URLs.
 
-### Related fallback flow (for completeness)
+### Flow C: model-gateway-api (sync chat + sync RAG)
 
-If `USE_CHATBOT_API=false`, `web` calls `model-gateway-api /api/chat/completions` (synchronous) and creates synthetic job IDs to keep dashboard polling behavior compatible.
+Use when `USE_CHATBOT_API=false` and you want one Python service for chat, ingest, and vectors (no Inngest).
+
+How it works:
+
+1. Chat: `POST /api/chatbot/query` → `model-gateway-api` `POST /api/chat/completions` → web returns a **synthetic** query job id (`mgwq_*`) for polling.
+2. PDF ingest: `POST /api/chatbot/ingest` → `POST /api/rag/ingest` → web returns a **synthetic** ingest job id (`mgwi_*`) with `{ ingested, source }` already filled in.
+3. Scrape/crawl text: `web` → `POST /api/rag/ingest-text` (sync).
+4. Document delete / source cleanup: `web` → `DELETE /api/rag/sources/{id}`.
+
+Required services:
+
+- `web` (3000)
+- `model-gateway-api` (8003)
+- `webscraper` (8000) if using scrape/crawl
+- **`monorepo/.env.shared`** with aligned `CHROMA_*` and `EMBEDDING_*`
+
+Typical config:
+
+- `USE_CHATBOT_API=false`
+- `MODEL_GATEWAY_API_URL=http://127.0.0.1:8003`
 
 ## App-by-App Summary
 
@@ -232,8 +291,8 @@ Responsibilities:
 Key flows:
 
 - Query flow: `web -> chatbot-api` (async) or `web -> model-gateway-api` (sync + synthetic job), controlled by `USE_CHATBOT_API`.
-- Scraper flow: `web -> webscraper -> Mongo (crawl jobs) -> chatbot-api /v1/ingest-text` + Mongo **`ChatbotDocument`** rows (site rows aggregate many pages).
-- Knowledge base list (`GET /api/chatbot/documents`): primarily **Mongo**; if Mongo has **no** rows for the user, the handler **backfills from `chatbot-api` `/v1/sources`** using **non-URL** source ids only (so orphaned crawl chunks do not become dozens of fake library rows). Deletes remove vectors in **chatbot-api** then Mongo rows (including legacy per-page keys).
+- Scraper flow: `web -> webscraper -> Mongo (crawl jobs) -> active RAG backend ingest-text` + Mongo **`ChatbotDocument`** rows (site rows aggregate many pages).
+- Knowledge base list (`GET /api/chatbot/documents`): primarily **Mongo**; if Mongo has **no** rows for the user, the handler **backfills from the active backend’s sources API** using **non-URL** source ids only. Deletes remove vectors in the **active RAG backend** then Mongo rows (including legacy per-page keys).
 
 Important API groups:
 
@@ -332,9 +391,9 @@ Core:
 
 Integrations:
 
-- **`CHATBOT_API_URL`** (server routes; default `http://127.0.0.1:8001`) — **ingest, document CRUD, vector delete, scrape text ingest** always use this host.
+- **`CHATBOT_API_URL`** (default `http://127.0.0.1:8001`) — used when **`USE_CHATBOT_API=true`** for chat, ingest, and vector ops.
 - **`NEXT_PUBLIC_CHATBOT_API_BASE_URL`** — optional client-visible fallback; server prefers `CHATBOT_API_URL` when set.
-- `MODEL_GATEWAY_API_URL` (default `http://127.0.0.1:8003`) — used when `USE_CHATBOT_API=false` for **query** (and related gateway paths).
+- `MODEL_GATEWAY_API_URL` (default `http://127.0.0.1:8003`) — used when `USE_CHATBOT_API=false` for **chat, ingest, and vector ops** (no Inngest required for PDF ingest).
 - `SCRAPER_API_URL` (default `http://localhost:8000`)
 
 ### chatbot-api (`apps/chatbot-api/.env` + optional `monorepo/.env.shared`)

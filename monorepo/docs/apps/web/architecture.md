@@ -6,7 +6,7 @@
 - `components/` - UI components and feature-level clients.
 - `lib/auth` - Auth, permission checks, and RBAC enforcement.
 - `lib/db` - Data repositories for MongoDB-backed entities.
-- `lib/chatbot` - Upstream proxy and service-selection helpers.
+- `lib/chatbot` - Upstream proxy, **`ragService.ts`** (RAG backend selection), synthetic job helpers.
 - `lib/scraper` - Crawl worker orchestration and scrape ingestion mapping.
 
 ## Query Flow
@@ -47,12 +47,35 @@ sequenceDiagram
     WebAPI->>Scraper: call /api/v1/scrape or /api/v1/crawl/stream
     Scraper-->>WebAPI: structured text / stream events
     WebAPI->>DB: persist job progress and metadata
-    WebAPI->>Chatbot: POST /v1/ingest-text (page URL as source id)
+    WebAPI->>RAG: POST ingest-text on active backend (chatbot or model-gateway)
     WebAPI->>DB: upsert ChatbotDocument site row
     WebAPI-->>Browser: response + ingestion metadata
 ```
 
-Ingest and document routes use **`getChatbotApiBaseUrl()`** ( **`CHATBOT_API_URL`** ), independent of **`USE_CHATBOT_API`**, so vectors and the scraper UI stay aligned with **`chatbot-api`** even when chat queries go to **`model-gateway-api`**.
+## Ingest Flow (PDF upload)
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant WebAPI as web/api/chatbot/ingest
+    participant CB as chatbot-api
+    participant MG as model-gateway-api
+    participant Jobs as web jobs + synthetic ids
+
+    Browser->>WebAPI: multipart PDF
+    alt USE_CHATBOT_API = true
+        WebAPI->>CB: POST /v1/ingest
+        CB-->>WebAPI: event_ids (Inngest)
+    else USE_CHATBOT_API = false
+        WebAPI->>MG: POST /api/rag/ingest
+        MG-->>WebAPI: ingested + source (sync)
+        WebAPI->>Jobs: create mgwi_* synthetic job
+        Jobs-->>WebAPI: event_ids
+    end
+    WebAPI-->>Browser: event_ids + document row
+```
+
+Ingest, document vector deletes, and scrape→text use **`getRagServiceBaseUrl()`** (same **`USE_CHATBOT_API`** toggle as chat). Both Python services share **`CHROMA_PERSIST_DIR`** / **`CHROMA_COLLECTION`** via **`monorepo/.env.shared`** (default **`monorepo/chroma_data`**).
 
 ## Security and Control Points
 

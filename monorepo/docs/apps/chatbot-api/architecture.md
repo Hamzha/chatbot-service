@@ -47,6 +47,7 @@ sequenceDiagram
 
 ## Key Design Notes
 
+- **`web`** uses this service for chat and RAG when **`USE_CHATBOT_API=true`**; scrape text uses sync **`/v1/ingest-text`**, PDF uses Inngest **`/v1/ingest`**.
 - Async and sync query endpoints both exist (`/v1/query`, `/v1/query/sync`).
 - Error handling returns JSON with stable shape, including a request ID on 500s.
 - Auth context is passed from `web` via `x-user-id` and validated server-side.

@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { upstreamError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
-import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
+import {
+  getRagServiceBaseUrl,
+  ragListSourcesRequestUrl,
+  ragUserHeaders,
+} from "@/lib/chatbot/ragService";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
@@ -17,14 +21,15 @@ async function getSources() {
   if (limited) return limited;
 
   try {
-    const res = await fetch(`${getChatbotApiBaseUrl()}/v1/sources`, {
+    const baseUrl = getRagServiceBaseUrl();
+    const res = await fetch(ragListSourcesRequestUrl(baseUrl, userId), {
       method: "GET",
-      headers: { "x-user-id": userId },
+      headers: ragUserHeaders(userId),
     });
     const text = await res.text();
     return proxyChatbotResponse(res, text);
   } catch (error) {
-    return upstreamError(error, "Cannot reach chatbot service");
+    return upstreamError(error, "Cannot reach RAG service");
   }
 }
 

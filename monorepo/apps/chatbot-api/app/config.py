@@ -113,6 +113,13 @@ class Settings(BaseSettings):
         return mp if mp in {"ollama", "openai"} else "openai"
 
     @model_validator(mode="after")
+    def resolve_shared_paths(self) -> "Settings":
+        chroma = Path(self.chroma_persist_dir)
+        if not chroma.is_absolute():
+            object.__setattr__(self, "chroma_persist_dir", str((MONOREPO_ROOT / chroma).resolve()))
+        return self
+
+    @model_validator(mode="after")
     def validate_provider_config(self) -> "Settings":
         provider = self.model_provider.lower().strip()
         eb = self.embedding_backend.strip().lower()

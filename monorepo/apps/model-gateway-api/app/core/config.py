@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -48,6 +49,13 @@ class Settings(BaseSettings):
         env_file=_gateway_env_files(),
         env_file_encoding="utf-8",
     )
+
+    @model_validator(mode="after")
+    def resolve_shared_paths(self) -> "Settings":
+        chroma = Path(self.chroma_persist_dir)
+        if not chroma.is_absolute():
+            object.__setattr__(self, "chroma_persist_dir", str((MONOREPO_ROOT / chroma).resolve()))
+        return self
 
 
 settings = Settings()

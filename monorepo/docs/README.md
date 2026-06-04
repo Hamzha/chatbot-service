@@ -12,22 +12,35 @@ This folder is the central documentation hub for all applications in this reposi
 ## System Flow
 
 ```mermaid
-flowchart LR
+flowchart TD
     U[User Browser] --> W[web :3000]
-    W -->|chat when USE_CHATBOT_API=true| C[chatbot-api :8001]
-    W -->|chat when USE_CHATBOT_API=false| M[model-gateway-api :8003]
-    W -->|ingest / KB vectors / scrape text| C
+    W --> Q{USE_CHATBOT_API?}
+    Q -->|true| C[chatbot-api :8001]
+    Q -->|false| M[model-gateway-api :8003]
     W -->|scrape/crawl| S[webscraper :8000]
-    C --> I[Inngest]
-    C --> V[(Chroma Vector Store)]
+    C --> I[Inngest PDF + async chat]
+    C --> V[(Chroma monorepo/chroma_data)]
     M --> V
+    S --> W
 ```
 
-Optional **`monorepo/.env.shared`** (from `.env.shared.example`) supplies shared defaults for **`chatbot-api`** and **`model-gateway-api`** (embedding backend, Chroma collection, etc.); each app’s `.env` / `.env.local` overrides.
+### RAG routing (chat, ingest, vectors)
+
+**`USE_CHATBOT_API`** in `apps/web` selects the backend for **chat**, **PDF ingest**, **scrape→text ingest**, and **vector list/delete**. There is no separate ingest service.
+
+| Toggle | Python service | Inngest needed? |
+| --- | --- | --- |
+| `true` | `chatbot-api` | Yes for **PDF** ingest and async **chat** |
+| `false` | `model-gateway-api` | No — ingest and chat are sync |
+
+Both backends share **`CHROMA_PERSIST_DIR`** / **`CHROMA_COLLECTION`** via **`monorepo/.env.shared`** (default `monorepo/chroma_data`). Web helper: `apps/web/lib/chatbot/ragService.ts`.
+
+Optional **`monorepo/.env.shared`** (from `.env.shared.example`) supplies shared embedding and Chroma defaults; each Python app’s `.env` / `.env.local` overrides on duplicate keys.
 
 ## Architecture Decisions
 
-- [`decisions/keep-rag-ingest-in-chatbot-api.md`](./decisions/keep-rag-ingest-in-chatbot-api.md) — why platform ingest stays on `chatbot-api` and we do not merge ingest into both backends.
+- [`decisions/rag-ingest-per-backend-shared-chroma.md`](./decisions/rag-ingest-per-backend-shared-chroma.md) — colocated ingest on each backend + shared Chroma (current).
+- [`decisions/keep-rag-ingest-in-chatbot-api.md`](./decisions/keep-rag-ingest-in-chatbot-api.md) — superseded (ingest only on chatbot-api).
 
 ## Implementation Plans
 

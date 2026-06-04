@@ -40,5 +40,8 @@ npm run test --workspace=chatbot-api
 - In production, openai mode requires `OPENAI_API_KEY`.
 - In production, at least one of `AUTH_JWT_SECRET` or `SERVICE_API_KEY` is required.
 - Uploads are written to local `uploads/` and size-limited.
-- Inngest must be reachable for async query/ingest paths.
+- **Inngest** must be reachable for async **chat** (`/v1/query`) and **PDF** ingest (`/v1/ingest`). **Text** ingest (`/v1/ingest-text`) is synchronous.
+- **`web`** calls this service only when **`USE_CHATBOT_API=true`** (see `apps/web/lib/chatbot/ragService.ts`).
+- Share **`CHROMA_PERSIST_DIR`** / **`CHROMA_COLLECTION`** with **`model-gateway-api`** via **`monorepo/.env.shared`** so both can use the same index if you switch the web toggle (embedding settings must match).
+- Relative **`CHROMA_PERSIST_DIR`** in env resolves from the **monorepo root**.
 - **Embedding vector size** must match the collection: changing **`EMBEDDING_BACKEND`** or models usually requires re-ingesting or wiping Chroma.

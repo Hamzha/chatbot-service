@@ -4,7 +4,12 @@ import { upstreamError, validationError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
-import { getSyntheticQueryJob, isSyntheticQueryJobId } from "@/lib/chatbot/syntheticQueryJobs";
+import {
+  getSyntheticIngestJob,
+  getSyntheticQueryJob,
+  isSyntheticIngestJobId,
+  isSyntheticQueryJobId,
+} from "@/lib/chatbot/syntheticQueryJobs";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 
 async function getJobStatus(
@@ -24,6 +29,20 @@ async function getJobStatus(
     return validationError("Missing eventId");
   }
   const normalizedEventId = eventId.trim();
+
+  if (isSyntheticIngestJobId(normalizedEventId)) {
+    const job = getSyntheticIngestJob(normalizedEventId);
+    if (!job) {
+      return NextResponse.json({ error: "Job not found or expired" }, { status: 404 });
+    }
+    return NextResponse.json({
+      status: "Success",
+      output: {
+        ingested: job.ingested,
+        source: job.source,
+      },
+    });
+  }
 
   if (isSyntheticQueryJobId(normalizedEventId)) {
     const job = getSyntheticQueryJob(normalizedEventId);

@@ -29,6 +29,7 @@ function stubChatbotApi(
 }
 
 beforeEach(() => {
+    process.env.USE_CHATBOT_API = "true";
     process.env.CHATBOT_API_URL = "http://chatbot.test:9999";
 });
 

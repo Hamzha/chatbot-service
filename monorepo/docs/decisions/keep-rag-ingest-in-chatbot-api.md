@@ -1,6 +1,6 @@
 # Decision: Do Not Merge Ingest Into Both Backends
 
-**Status:** Accepted  
+**Status:** Superseded by [rag-ingest-per-backend-shared-chroma.md](./rag-ingest-per-backend-shared-chroma.md)  
 **Date:** 2026-06-02  
 **Context:** We considered colocating RAG ingest inside both `chatbot-api` and `model-gateway-api` (instead of treating ingest as a separate concern or routing it differently per backend).
 
