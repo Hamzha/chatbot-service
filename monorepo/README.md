@@ -104,6 +104,7 @@ monorepo/
 
 ## App Documentation Index
 
+- [`docs/APPLICATION_FLOW_MODEL_GATEWAY.md`](./docs/APPLICATION_FLOW_MODEL_GATEWAY.md) — end-to-end flow (login → widget script) for **model-gateway-api + webscraper**
 - [`docs/apps/web/README.md`](./docs/apps/web/README.md)
 - [`docs/apps/chatbot-api/README.md`](./docs/apps/chatbot-api/README.md)
 - [`docs/apps/model-gateway-api/README.md`](./docs/apps/model-gateway-api/README.md)

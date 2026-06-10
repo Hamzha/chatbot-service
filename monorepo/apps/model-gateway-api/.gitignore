@@ -6,6 +6,6 @@ __pycache__/
 
 # Virtual env
 .venv/
-
+uploads/
 # Local env file
 .env

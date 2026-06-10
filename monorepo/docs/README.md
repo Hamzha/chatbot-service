@@ -2,6 +2,10 @@
 
 This folder is the central documentation hub for all applications in this repository.
 
+## Product flow (recommended read)
+
+- [`APPLICATION_FLOW_MODEL_GATEWAY.md`](./APPLICATION_FLOW_MODEL_GATEWAY.md) — full journey from login → knowledge base → chatbot → embed script ( **model-gateway-api + webscraper only** ).
+
 ## Apps
 
 - [`apps/web`](./apps/web/README.md) - Next.js frontend, auth/RBAC, API facade, and job orchestration.
