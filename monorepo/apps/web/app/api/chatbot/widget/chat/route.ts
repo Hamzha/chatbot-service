@@ -6,6 +6,7 @@ import { getChatSessionById } from "@/lib/db/chatSessionRepo";
 import { getWidgetChatBackendBaseUrl, isChatbotApiEnabled } from "@/lib/chatbot/getChatbotServiceBaseUrl";
 import { validateWidgetRequest } from "@/lib/chatbot/validateWidgetRequest";
 import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
+import { requireFeatureQuota } from "@/lib/limits/requireFeatureQuota";
 import { appendWidgetMessage } from "@/lib/db/widgetMessageRepo";
 import { findActiveTakeoverForSession } from "@/lib/db/escalationRepo";
 import { maybeAutoEscalate } from "@/lib/chatbot/autoEscalation";
@@ -51,6 +52,9 @@ async function postWidgetChat(request: Request) {
   if (!chatbot) {
     return NextResponse.json({ error: "Invalid botId" }, { status: 404 });
   }
+
+  const widgetQuota = await requireFeatureQuota(chatbot.userId, "widgetChats");
+  if (widgetQuota) return widgetQuota;
 
   const widgetSessionId = normalizeWidgetSessionId(parsed.data.widgetSessionId);
 

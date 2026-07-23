@@ -59,6 +59,8 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
         update: "Update scraper settings (reserved)",
         delete: "Delete scraper resources (reserved)",
     }),
+    { module: "limits", action: "read", description: "View trial / feature usage limits" },
+    { module: "limits", action: "update", description: "Edit global and per-user feature limits" },
 ];
 
 export function permissionCode(module: string, action: string): string {

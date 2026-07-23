@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
+import { requireFeatureQuota } from "@/lib/limits/requireFeatureQuota";
 import { proxyChatbotResponse } from "@/lib/chatbot/proxyUpstream";
 import {
   getRagServiceBaseUrl,
@@ -19,6 +20,9 @@ async function postIngest(request: Request) {
 
   const limited = await requireRateLimitByUser(userId, "chatbot:ingest", { limit: 10, windowSec: 60 });
   if (limited) return limited;
+
+  const quota = await requireFeatureQuota(userId, "documentUploads");
+  if (quota) return quota;
 
   const incoming = await request.formData();
   const file = incoming.get("file");

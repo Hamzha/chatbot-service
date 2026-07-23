@@ -6,6 +6,12 @@ import { PageContainer } from "@/components/shell/PageContainer";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { toast } from "@/lib/ui/toast";
 import { extractErrorMessage } from "@/lib/ui/notifyMutation";
+import {
+    FEATURE_LIMIT_KEYS,
+    FEATURE_LIMIT_LABELS,
+    type FeatureLimitKey,
+    type FeatureLimitValues,
+} from "@/lib/limits/featureLimitTypes";
 
 type RoleOption = { id: string; slug: string; name: string; enabled: boolean; isSystem: boolean };
 type UserRow = {
@@ -16,6 +22,12 @@ type UserRow = {
     emailVerified: boolean;
     roleIds: string[];
     roles: { id: string; slug: string; name: string; enabled: boolean }[];
+};
+
+type UserLimitsState = {
+    override: { limits: Partial<FeatureLimitValues> } | null;
+    effective: { limits: FeatureLimitValues; period: string };
+    usage: { key: FeatureLimitKey; used: number; limit: number | null }[];
 };
 
 async function readError(res: Response): Promise<string> {
@@ -37,6 +49,10 @@ export function UsersAdminClient() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [canEditLimits, setCanEditLimits] = useState(false);
+    const [userLimits, setUserLimits] = useState<UserLimitsState | null>(null);
+    const [draftLimits, setDraftLimits] = useState<Partial<Record<FeatureLimitKey, string>>>({});
+    const [savingLimits, setSavingLimits] = useState(false);
 
     const selected = useMemo(() => users.find((u) => u.id === selectedId) ?? null, [users, selectedId]);
 
@@ -50,8 +66,9 @@ export function UsersAdminClient() {
                 fetch("/api/admin/roles", { credentials: "include" }),
             ]);
             if (meRes.ok) {
-                const me = (await meRes.json()) as { user?: { id: string } };
+                const me = (await meRes.json()) as { user?: { id: string }; permissions?: string[] };
                 if (me.user?.id) setCurrentUserId(me.user.id);
+                setCanEditLimits(Boolean(me.permissions?.includes("limits:update")));
             }
             if (!usersRes.ok) throw new Error(await readError(usersRes));
             if (!rolesRes.ok) throw new Error(await readError(rolesRes));
@@ -78,6 +95,30 @@ export function UsersAdminClient() {
         if (!selected) return;
         setDraftRoleIds(new Set(selected.roleIds));
         setSuccess(null);
+        setUserLimits(null);
+        setDraftLimits({});
+        void (async () => {
+            try {
+                const res = await fetch(`/api/admin/limits/users/${selected.id}`, { credentials: "include" });
+                if (!res.ok) return;
+                const data = (await res.json()) as UserLimitsState;
+                setUserLimits(data);
+                const next: Partial<Record<FeatureLimitKey, string>> = {};
+                for (const key of FEATURE_LIMIT_KEYS) {
+                    const overrideVal = data.override?.limits?.[key];
+                    if (overrideVal === undefined) {
+                        next[key] = "";
+                    } else if (overrideVal === null) {
+                        next[key] = "unlimited";
+                    } else {
+                        next[key] = String(overrideVal);
+                    }
+                }
+                setDraftLimits(next);
+            } catch {
+                /* optional section */
+            }
+        })();
     }, [selected]);
 
     const toggleRole = (roleId: string) => {
@@ -116,6 +157,47 @@ export function UsersAdminClient() {
         }
     };
 
+    const saveUserLimits = async () => {
+        if (!selected) return;
+        setSavingLimits(true);
+        setError(null);
+        const loadingId = toast.loading("Saving user limits…");
+        try {
+            const limits: Partial<FeatureLimitValues> = {};
+            let anySet = false;
+            for (const key of FEATURE_LIMIT_KEYS) {
+                const raw = (draftLimits[key] ?? "").trim().toLowerCase();
+                if (!raw) continue;
+                anySet = true;
+                if (raw === "unlimited" || raw === "null") {
+                    limits[key] = null;
+                } else {
+                    const n = Number(raw);
+                    if (!Number.isFinite(n) || n < 0) {
+                        throw new Error(`Invalid limit for ${key}`);
+                    }
+                    limits[key] = Math.floor(n);
+                }
+            }
+            const res = await fetch(`/api/admin/limits/users/${selected.id}`, {
+                method: "PUT",
+                credentials: "include",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(anySet ? { limits } : { clear: true }),
+            });
+            if (!res.ok) throw new Error(await readError(res));
+            const data = (await res.json()) as UserLimitsState;
+            setUserLimits(data);
+            toast.success("User limits updated", { id: loadingId });
+        } catch (e) {
+            const msg = extractErrorMessage(e, "Could not save user limits");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
+        } finally {
+            setSavingLimits(false);
+        }
+    };
+
     if (loading) {
         return (
             <PageContainer size="5xl">
@@ -132,7 +214,7 @@ export function UsersAdminClient() {
                 variant="plain"
                 eyebrow="Admin"
                 title="Users & roles"
-                subtitle="Assign one or more roles to each account. Effective permissions are the union of all assigned roles that are still enabled."
+                subtitle="Assign roles and optional per-user feature limit overrides. Global defaults live under Feature limits."
             />
 
             {error ? (
@@ -211,7 +293,7 @@ export function UsersAdminClient() {
                                 Check every role this user should have. Uncheck all to remove every role (they will have no permissions until you assign again).
                             </p>
 
-                            <div className="max-h-[50vh] space-y-2 overflow-y-auto rounded-xl border border-slate-100 bg-white/80 p-3 sm:p-4">
+                            <div className="max-h-[40vh] space-y-2 overflow-y-auto rounded-xl border border-slate-100 bg-white/80 p-3 sm:p-4">
                                 {roleOptions.map((r) => (
                                     <label
                                         key={r.id}
@@ -237,6 +319,59 @@ export function UsersAdminClient() {
                                         </span>
                                     </label>
                                 ))}
+                            </div>
+
+                            <div className="space-y-3 border-t border-slate-200 pt-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-slate-900">Feature limit overrides</h3>
+                                        <p className="text-xs text-slate-600">
+                                            Leave blank to use global defaults. Type <span className="font-mono">unlimited</span> for no
+                                            cap. Period follows global settings
+                                            {userLimits ? ` (${userLimits.effective.period})` : ""}.
+                                        </p>
+                                    </div>
+                                    {canEditLimits ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => void saveUserLimits()}
+                                            disabled={savingLimits}
+                                            className="h-10 rounded-lg border border-brand-300 bg-white px-4 text-sm font-semibold text-brand-900 hover:bg-brand-50 disabled:opacity-50"
+                                        >
+                                            {savingLimits ? "Saving…" : "Save limits"}
+                                        </button>
+                                    ) : null}
+                                </div>
+                                {userLimits ? (
+                                    <div className="space-y-2 rounded-xl border border-slate-100 bg-white/80 p-3">
+                                        {FEATURE_LIMIT_KEYS.map((key) => {
+                                            const usage = userLimits.usage.find((u) => u.key === key);
+                                            return (
+                                                <label key={key} className="block text-sm">
+                                                    <span className="font-medium text-slate-800">{FEATURE_LIMIT_LABELS[key]}</span>
+                                                    <span className="ml-2 text-xs text-slate-600">
+                                                        used {usage?.used ?? 0}
+                                                        {usage?.limit === null || usage?.limit === undefined
+                                                            ? " / ∞"
+                                                            : ` / ${usage.limit}`}
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                                                        placeholder={`Global: ${userLimits.effective.limits[key] ?? "unlimited"}`}
+                                                        value={draftLimits[key] ?? ""}
+                                                        disabled={!canEditLimits || savingLimits}
+                                                        onChange={(e) =>
+                                                            setDraftLimits((prev) => ({ ...prev, [key]: e.target.value }))
+                                                        }
+                                                    />
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-600">Loading usage… (needs limits:read)</p>
+                                )}
                             </div>
                         </>
                     )}

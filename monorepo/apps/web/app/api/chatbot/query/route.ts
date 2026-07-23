@@ -4,6 +4,7 @@ import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { jsonError, parseJsonBody, upstreamError, validationError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
+import { requireFeatureQuota } from "@/lib/limits/requireFeatureQuota";
 import { expandSessionRagKeys } from "@/lib/chatbot/expandSessionRagKeys";
 import { formatConversationContext } from "@/lib/chatbot/formatConversationContext";
 import {
@@ -29,6 +30,9 @@ async function postQuery(request: Request) {
 
   const limited = await requireRateLimitByUser(userId, "chatbot:query", { limit: 30, windowSec: 60 });
   if (limited) return limited;
+
+  const quota = await requireFeatureQuota(userId, "dashboardChats");
+  if (quota) return quota;
 
   const parsed = await parseJsonBody(request, querySchema);
   if (!parsed.ok) return parsed.response;

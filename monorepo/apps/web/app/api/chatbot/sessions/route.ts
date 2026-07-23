@@ -9,6 +9,7 @@ import {
 } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
+import { requireFeatureQuota } from "@/lib/limits/requireFeatureQuota";
 import { createChatSession, listChatSessions, resolveSessionSelectedDocuments } from "@/lib/db/chatSessionRepo";
 
 const createSessionSchema = z.object({
@@ -44,6 +45,10 @@ async function postSessions(request: Request) {
     windowSec: 60,
   });
   if (limited) return limited;
+
+  const quota = await requireFeatureQuota(userId, "botsCreated");
+  if (quota) return quota;
+
   const parsed = await parseJsonBody(request, createSessionSchema);
   if (!parsed.ok) return parsed.response;
   const { name, documentIds } = parsed.data;

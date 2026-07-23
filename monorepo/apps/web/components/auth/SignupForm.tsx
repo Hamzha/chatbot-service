@@ -8,6 +8,7 @@ import { Input } from "@repo/ui/input";
 import { PasswordInput } from "@repo/ui/password-input";
 import { useAuth } from "@repo/auth/hooks/useAuth";
 import { validateEmail, validateName, validateSignupPassword } from "@/components/auth/validation";
+import { AuthDivider, GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export function SignupForm() {
     const router = useRouter();
@@ -58,6 +59,8 @@ export function SignupForm() {
 
     return (
         <form className="space-y-5" onSubmit={onSubmit}>
+            <GoogleSignInButton label="Sign up with Google" />
+            <AuthDivider />
             <Input
                 id="signup-name"
                 label="Name"

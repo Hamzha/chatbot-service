@@ -51,4 +51,10 @@ export const DASHBOARD_SIDEBAR_NAV = [
         href: "/dashboard/admin/users",
         permission: "users:read",
     },
+    {
+        id: "nav.dashboard.admin.limits",
+        label: "Feature limits",
+        href: "/dashboard/admin/limits",
+        permission: "limits:read",
+    },
 ] as const;

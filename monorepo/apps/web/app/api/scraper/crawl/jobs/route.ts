@@ -4,6 +4,7 @@ import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { parseJsonBody, validationError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
+import { requireFeatureQuota } from "@/lib/limits/requireFeatureQuota";
 import { createCrawlJob, listCrawlJobsForUser } from "@/lib/db/crawlJobRepo";
 import { runCrawlJob } from "@/lib/scraper/crawlJobWorker";
 
@@ -35,6 +36,9 @@ async function postCrawlJob(req: NextRequest) {
 
     const limited = await requireRateLimitByUser(userId, "scraper:crawl", { limit: 5, windowSec: 60 });
     if (limited) return limited;
+
+    const quota = await requireFeatureQuota(userId, "scraperRuns");
+    if (quota) return quota;
 
     const parsed = await parseJsonBody(req, createCrawlJobSchema);
     if (!parsed.ok) return parsed.response;

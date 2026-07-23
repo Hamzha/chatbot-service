@@ -4,6 +4,7 @@ import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
 import { parseJsonBody, upstreamError } from "@/lib/api/routeValidation";
 import { withApiLogging } from "@/lib/api/withApiLogging";
 import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
+import { requireFeatureQuota, recordScrapeRun } from "@/lib/limits/requireFeatureQuota";
 import { registerScrapedDocument } from "@/lib/scraper/registerScrapedDocument";
 
 const SCRAPER_API_URL = process.env.SCRAPER_API_URL || "http://localhost:8000";
@@ -22,6 +23,9 @@ async function postScrape(req: NextRequest) {
 
         const limited = await requireRateLimitByUser(userId, "scraper:scrape", { limit: 20, windowSec: 60 });
         if (limited) return limited;
+
+        const quota = await requireFeatureQuota(userId, "scraperRuns");
+        if (quota) return quota;
 
         const parsed = await parseJsonBody(req, scrapeRequestSchema);
         if (!parsed.ok) return parsed.response;
@@ -49,6 +53,7 @@ async function postScrape(req: NextRequest) {
                 title: row.title ?? undefined,
                 textContent: row.text_content ?? "",
             });
+            await recordScrapeRun(userId);
         }
 
         return NextResponse.json(

@@ -24,7 +24,11 @@ export function ForgotPasswordForm() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email }),
             });
-            const data = (await response.json()) as { message?: string; error?: string };
+            const data = (await response.json()) as {
+                message?: string;
+                error?: string;
+                code?: string;
+            };
 
             if (!response.ok) {
                 const msg = data.error || "Unable to process request.";
@@ -35,7 +39,11 @@ export function ForgotPasswordForm() {
 
             const successMsg = data.message || "If an account exists, a reset link has been sent.";
             setMessage(successMsg);
-            toast.success("Reset email sent");
+            if (data.code === "GOOGLE_ACCOUNT") {
+                toast.info("Use Google sign-in");
+            } else {
+                toast.success("Reset email sent");
+            }
         } catch {
             setError("Unable to process request.");
             toast.error("Unable to process request.");
@@ -43,6 +51,9 @@ export function ForgotPasswordForm() {
             setIsSubmitting(false);
         }
     }
+
+    const isGoogleAccountMessage =
+        message?.toLowerCase().includes("created with google") ?? false;
 
     return (
         <form className="space-y-4" onSubmit={onSubmit}>
@@ -64,9 +75,21 @@ export function ForgotPasswordForm() {
             {message ? (
                 <p
                     role="status"
-                    className="glass rounded-xl border-emerald-300/60 px-3 py-2 text-sm text-emerald-800"
+                    className={
+                        isGoogleAccountMessage
+                            ? "rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                            : "glass rounded-xl border-emerald-300/60 px-3 py-2 text-sm text-emerald-800"
+                    }
                 >
                     {message}
+                    {isGoogleAccountMessage ? (
+                        <>
+                            {" "}
+                            <a href="/api/auth/google" className="font-semibold underline">
+                                Continue with Google
+                            </a>
+                        </>
+                    ) : null}
                 </p>
             ) : null}
 
