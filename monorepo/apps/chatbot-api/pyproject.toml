@@ -20,7 +20,21 @@ dependencies = [
   "requests>=2.32.0",
   "chromadb>=0.5.5",
   "pypdf>=4.2.0",
+  "PyJWT>=2.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "ruff>=0.7.0",
 ]
 
 [tool.setuptools]
 packages = ["app"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

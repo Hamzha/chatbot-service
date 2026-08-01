@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUserFromToken } from "@/lib/auth/authService";
 import { getAuthContextForUserId } from "@/lib/auth/authorization";
 import { getSessionCookie } from "@repo/auth/lib/cookies";
+import { PageContainer } from "@/components/shell/PageContainer";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { ProfileClient } from "@/components/dashboard/ProfileClient";
 
 export default async function ProfilePage() {
@@ -16,14 +18,13 @@ export default async function ProfilePage() {
     const permissions = ctx ? [...ctx.permissions].sort() : [];
 
     return (
-        <div className="mx-auto max-w-2xl space-y-8">
-            <header>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-700">Account</p>
-                <h1 className="mt-1 text-3xl font-semibold text-slate-900">My profile</h1>
-                <p className="mt-2 text-sm text-slate-600">
-                    Your sign-in identity and roles. Update your display name here; use the password reset flow to change your password.
-                </p>
-            </header>
+        <PageContainer size="md">
+            <PageHeader
+                variant="plain"
+                eyebrow="Account"
+                title="My profile"
+                subtitle="Your sign-in identity and roles. Update your display name here; use the password reset flow to change your password."
+            />
 
             <ProfileClient
                 initialUser={user}
@@ -31,11 +32,14 @@ export default async function ProfilePage() {
                 initialPermissions={permissions}
             />
 
-            <p className="text-center text-sm text-slate-500">
-                <Link href="/dashboard" className="font-medium text-brand-700 hover:text-brand-900">
-                    Back to overview
+            <p className="pt-2 text-center text-sm text-slate-700">
+                <Link
+                    href="/dashboard"
+                    className="font-semibold text-brand-700 underline-offset-2 hover:text-brand-900 hover:underline"
+                >
+                    ← Back to overview
                 </Link>
             </p>
-        </div>
+        </PageContainer>
     );
 }

@@ -1,12 +1,24 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { login, mapAuthError } from "@/lib/auth/authService";
+import { parseJsonBody } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
+import { requireRateLimitByIp } from "@/lib/rateLimit/requireRateLimit";
 import { setSessionCookie } from "@repo/auth/lib/cookies";
-import type { LoginInput } from "@repo/auth/types";
 
-export async function POST(request: Request) {
+const loginRequestSchema = z.object({
+    email: z.string(),
+    password: z.string(),
+});
+
+async function postLogin(request: Request) {
+    const limited = await requireRateLimitByIp(request, "auth:login", { limit: 5, windowSec: 900 });
+    if (limited) return limited;
+    const parsed = await parseJsonBody(request, loginRequestSchema);
+    if (!parsed.ok) return parsed.response;
+
     try {
-        const body = (await request.json()) as LoginInput;
-        const { token, user } = await login(body);
+        const { token, user } = await login(parsed.data);
 
         await setSessionCookie(token);
 
@@ -16,3 +28,5 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: mapped.message }, { status: mapped.status });
     }
 }
+
+export const POST = withApiLogging(postLogin);

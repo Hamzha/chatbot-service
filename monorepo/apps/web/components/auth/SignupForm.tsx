@@ -8,6 +8,7 @@ import { Input } from "@repo/ui/input";
 import { PasswordInput } from "@repo/ui/password-input";
 import { useAuth } from "@repo/auth/hooks/useAuth";
 import { validateEmail, validateName, validateSignupPassword } from "@/components/auth/validation";
+import { AuthDivider, GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 export function SignupForm() {
     const router = useRouter();
@@ -58,6 +59,8 @@ export function SignupForm() {
 
     return (
         <form className="space-y-5" onSubmit={onSubmit}>
+            <GoogleSignInButton label="Sign up with Google" />
+            <AuthDivider />
             <Input
                 id="signup-name"
                 label="Name"
@@ -74,7 +77,7 @@ export function SignupForm() {
                 }}
                 onBlur={() => setNameError(validateName(name))}
                 aria-invalid={Boolean(nameError)}
-                className="glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-brand-500"
+                className="glass-input h-11 rounded-xl text-base text-slate-900 placeholder:text-slate-500 focus:border-brand-500 focus:ring-brand-500 sm:text-sm"
                 required
             />
             {nameError ? <p className="-mt-3 text-xs text-red-700">{nameError}</p> : null}
@@ -94,7 +97,7 @@ export function SignupForm() {
                 }}
                 onBlur={() => setEmailError(validateEmail(email))}
                 aria-invalid={Boolean(emailError)}
-                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-brand-500 ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
+                className={`glass-input h-11 rounded-xl text-base text-slate-900 placeholder:text-slate-500 focus:border-brand-500 focus:ring-brand-500 sm:text-sm ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
                     }`}
                 required
             />
@@ -114,11 +117,11 @@ export function SignupForm() {
                 }}
                 onBlur={() => setPasswordError(validateSignupPassword(password))}
                 aria-invalid={Boolean(passwordError)}
-                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 ${passwordError ? "border-red-400" : ""}`}
+                className={`glass-input h-11 rounded-xl text-base text-slate-900 placeholder:text-slate-500 sm:text-sm ${passwordError ? "border-red-400" : ""}`}
                 required
             />
             {passwordError ? <p className="-mt-3 text-xs text-red-700">{passwordError}</p> : null}
-            <p className="-mt-2 text-xs leading-5 text-slate-500">
+            <p className="-mt-2 text-xs leading-5 text-slate-600">
                 Use at least 8 characters and avoid reusing passwords from other apps.
             </p>
             <FormError message={error} />

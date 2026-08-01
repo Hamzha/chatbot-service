@@ -8,7 +8,9 @@ type UserDoc = {
     _id: Types.ObjectId;
     email: string;
     name: string;
-    passwordHash: string;
+    passwordHash?: string;
+    googleId?: string | null;
+    image?: string | null;
     emailVerified?: Date;
     roleIds?: Types.ObjectId[];
     createdAt: Date;
@@ -31,7 +33,17 @@ const userSchema = new Schema<UserDoc>(
         },
         passwordHash: {
             type: String,
-            required: true,
+            required: false,
+        },
+        googleId: {
+            type: String,
+            default: null,
+            sparse: true,
+            unique: true,
+        },
+        image: {
+            type: String,
+            default: null,
         },
         emailVerified: {
             type: Date,
@@ -58,6 +70,8 @@ function mapUserDocToRecord(user: UserDoc): UserRecord {
         email: user.email,
         name: user.name,
         passwordHash: user.passwordHash,
+        googleId: user.googleId ?? null,
+        image: user.image ?? null,
         createdAt: user.createdAt.toISOString(),
         roleIds: user.roleIds?.map((id) => id.toString()),
     };
@@ -80,11 +94,21 @@ export function toSafeUser(user: UserRecord): SafeUser {
     };
 }
 
+export function isGoogleOnlyUser(user: UserRecord): boolean {
+    return Boolean(user.googleId) && !user.passwordHash;
+}
+
 export async function findUserByEmail(email: string): Promise<UserRecord | null> {
     await ensureDbConnection();
     const normalized = normalizeEmail(email);
     const user = await UserModel.findOne({ email: normalized }).lean<UserDoc | null>();
 
+    return user ? mapUserDocToRecord(user) : null;
+}
+
+export async function findUserByGoogleId(googleId: string): Promise<UserRecord | null> {
+    await ensureDbConnection();
+    const user = await UserModel.findOne({ googleId }).lean<UserDoc | null>();
     return user ? mapUserDocToRecord(user) : null;
 }
 
@@ -142,6 +166,44 @@ export async function createUser(input: {
     });
 
     return mapUserDocToRecord(created.toObject() as UserDoc);
+}
+
+export async function createGoogleUser(input: {
+    email: string;
+    name: string;
+    googleId: string;
+    image?: string;
+}): Promise<UserRecord> {
+    await ensureDbConnection();
+    const normalized = normalizeEmail(input.email);
+
+    const created = await UserModel.create({
+        email: normalized,
+        name: input.name.trim(),
+        googleId: input.googleId,
+        image: input.image ?? null,
+        emailVerified: new Date(),
+    });
+
+    return mapUserDocToRecord(created.toObject() as UserDoc);
+}
+
+export async function linkGoogleAccount(
+    userId: string,
+    input: { googleId: string; image?: string; name?: string },
+): Promise<UserRecord | null> {
+    if (!Types.ObjectId.isValid(userId)) return null;
+    await ensureDbConnection();
+
+    const $set: Record<string, unknown> = {
+        googleId: input.googleId,
+        emailVerified: new Date(),
+    };
+    if (input.image) $set.image = input.image;
+    if (input.name?.trim()) $set.name = input.name.trim();
+
+    const updated = await UserModel.findByIdAndUpdate(userId, { $set }, { new: true }).lean<UserDoc | null>();
+    return updated ? mapUserDocToRecord(updated) : null;
 }
 
 export async function verifyUserEmail(userId: string): Promise<UserRecord | null> {

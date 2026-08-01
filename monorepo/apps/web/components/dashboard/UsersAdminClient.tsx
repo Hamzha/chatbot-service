@@ -2,6 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { PageContainer } from "@/components/shell/PageContainer";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { toast } from "@/lib/ui/toast";
+import { extractErrorMessage } from "@/lib/ui/notifyMutation";
+import {
+    FEATURE_LIMIT_KEYS,
+    FEATURE_LIMIT_LABELS,
+    type FeatureLimitKey,
+    type FeatureLimitValues,
+} from "@/lib/limits/featureLimitTypes";
+
 type RoleOption = { id: string; slug: string; name: string; enabled: boolean; isSystem: boolean };
 type UserRow = {
     id: string;
@@ -11,6 +22,12 @@ type UserRow = {
     emailVerified: boolean;
     roleIds: string[];
     roles: { id: string; slug: string; name: string; enabled: boolean }[];
+};
+
+type UserLimitsState = {
+    override: { limits: Partial<FeatureLimitValues> } | null;
+    effective: { limits: FeatureLimitValues; period: string };
+    usage: { key: FeatureLimitKey; used: number; limit: number | null }[];
 };
 
 async function readError(res: Response): Promise<string> {
@@ -32,6 +49,10 @@ export function UsersAdminClient() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [canEditLimits, setCanEditLimits] = useState(false);
+    const [userLimits, setUserLimits] = useState<UserLimitsState | null>(null);
+    const [draftLimits, setDraftLimits] = useState<Partial<Record<FeatureLimitKey, string>>>({});
+    const [savingLimits, setSavingLimits] = useState(false);
 
     const selected = useMemo(() => users.find((u) => u.id === selectedId) ?? null, [users, selectedId]);
 
@@ -45,8 +66,9 @@ export function UsersAdminClient() {
                 fetch("/api/admin/roles", { credentials: "include" }),
             ]);
             if (meRes.ok) {
-                const me = (await meRes.json()) as { user?: { id: string } };
+                const me = (await meRes.json()) as { user?: { id: string }; permissions?: string[] };
                 if (me.user?.id) setCurrentUserId(me.user.id);
+                setCanEditLimits(Boolean(me.permissions?.includes("limits:update")));
             }
             if (!usersRes.ok) throw new Error(await readError(usersRes));
             if (!rolesRes.ok) throw new Error(await readError(rolesRes));
@@ -73,6 +95,30 @@ export function UsersAdminClient() {
         if (!selected) return;
         setDraftRoleIds(new Set(selected.roleIds));
         setSuccess(null);
+        setUserLimits(null);
+        setDraftLimits({});
+        void (async () => {
+            try {
+                const res = await fetch(`/api/admin/limits/users/${selected.id}`, { credentials: "include" });
+                if (!res.ok) return;
+                const data = (await res.json()) as UserLimitsState;
+                setUserLimits(data);
+                const next: Partial<Record<FeatureLimitKey, string>> = {};
+                for (const key of FEATURE_LIMIT_KEYS) {
+                    const overrideVal = data.override?.limits?.[key];
+                    if (overrideVal === undefined) {
+                        next[key] = "";
+                    } else if (overrideVal === null) {
+                        next[key] = "unlimited";
+                    } else {
+                        next[key] = String(overrideVal);
+                    }
+                }
+                setDraftLimits(next);
+            } catch {
+                /* optional section */
+            }
+        })();
     }, [selected]);
 
     const toggleRole = (roleId: string) => {
@@ -89,6 +135,7 @@ export function UsersAdminClient() {
         setSaving(true);
         setError(null);
         setSuccess(null);
+        const loadingId = toast.loading("Saving roles…");
         try {
             const res = await fetch(`/api/admin/users/${selected.id}`, {
                 method: "PATCH",
@@ -100,58 +147,119 @@ export function UsersAdminClient() {
             const json = (await res.json()) as { user: UserRow };
             setUsers((prev) => prev.map((u) => (u.id === json.user.id ? json.user : u)));
             setSuccess("Roles updated. User may need to refresh or log in again to see new permissions.");
+            toast.success(`Roles updated for ${json.user.name}`, { id: loadingId });
         } catch (e) {
-            setError(e instanceof Error ? e.message : String(e));
+            const msg = extractErrorMessage(e, "Could not save roles");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
         } finally {
             setSaving(false);
         }
     };
 
+    const saveUserLimits = async () => {
+        if (!selected) return;
+        setSavingLimits(true);
+        setError(null);
+        const loadingId = toast.loading("Saving user limits…");
+        try {
+            const limits: Partial<FeatureLimitValues> = {};
+            let anySet = false;
+            for (const key of FEATURE_LIMIT_KEYS) {
+                const raw = (draftLimits[key] ?? "").trim().toLowerCase();
+                if (!raw) continue;
+                anySet = true;
+                if (raw === "unlimited" || raw === "null") {
+                    limits[key] = null;
+                } else {
+                    const n = Number(raw);
+                    if (!Number.isFinite(n) || n < 0) {
+                        throw new Error(`Invalid limit for ${key}`);
+                    }
+                    limits[key] = Math.floor(n);
+                }
+            }
+            const res = await fetch(`/api/admin/limits/users/${selected.id}`, {
+                method: "PUT",
+                credentials: "include",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(anySet ? { limits } : { clear: true }),
+            });
+            if (!res.ok) throw new Error(await readError(res));
+            const data = (await res.json()) as UserLimitsState;
+            setUserLimits(data);
+            toast.success("User limits updated", { id: loadingId });
+        } catch (e) {
+            const msg = extractErrorMessage(e, "Could not save user limits");
+            setError(msg);
+            toast.error(msg, { id: loadingId });
+        } finally {
+            setSavingLimits(false);
+        }
+    };
+
     if (loading) {
-        return <p className="text-slate-600">Loading users…</p>;
+        return (
+            <PageContainer size="5xl">
+                <p className="text-sm text-slate-700" role="status" aria-live="polite">
+                    Loading users…
+                </p>
+            </PageContainer>
+        );
     }
 
     return (
-        <div className="space-y-6 max-w-5xl">
-            <div>
-                <h1 className="text-2xl font-semibold text-slate-900">Users & roles</h1>
-                <p className="text-sm text-slate-600 mt-1">
-                    Assign one or more roles to each account. Effective permissions are the union of all assigned roles that are still{" "}
-                    <span className="font-medium">enabled</span> (manage that on Roles & permissions).
-                </p>
-            </div>
+        <PageContainer size="5xl">
+            <PageHeader
+                variant="plain"
+                eyebrow="Admin"
+                title="Users & roles"
+                subtitle="Assign roles and optional per-user feature limit overrides. Global defaults live under Feature limits."
+            />
 
             {error ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
+                <div
+                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900"
+                    role="alert"
+                >
+                    {error}
+                </div>
             ) : null}
             {success ? (
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{success}</div>
+                <div
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+                    role="status"
+                    aria-live="polite"
+                >
+                    {success}
+                </div>
             ) : null}
 
-            <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+            <div className="grid gap-5 sm:gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Users</p>
-                    <ul className="space-y-1 max-h-[60vh] overflow-y-auto pr-1">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Users</p>
+                    <ul className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 sm:max-h-[60vh]">
                         {users.map((u) => (
                             <li key={u.id}>
                                 <button
                                     type="button"
                                     onClick={() => setSelectedId(u.id)}
-                                    className={`w-full text-left rounded-xl px-3 py-2 text-sm border transition-colors ${selectedId === u.id
-                                        ? "bg-white border-brand-300 text-brand-900 shadow-sm"
-                                        : "border-transparent text-slate-700 hover:bg-white/60"
+                                    aria-current={selectedId === u.id ? "true" : undefined}
+                                    className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${selectedId === u.id
+                                        ? "border-brand-300 bg-white text-brand-900 shadow-sm"
+                                        : "border-transparent text-slate-800 hover:bg-white/60"
                                         }`}
                                 >
-                                    <span className="font-medium flex items-center gap-2">
-                                        {u.name}
+                                    <span className="flex min-w-0 items-center gap-2 font-semibold">
+                                        <span className="truncate">{u.name}</span>
                                         {currentUserId === u.id ? (
-                                            <span className="rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-800">
+                                            <span className="shrink-0 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-800">
                                                 You
                                             </span>
                                         ) : null}
                                     </span>
-                                    <span className="block text-xs text-slate-500 truncate">{u.email}</span>
-                                    <span className="block text-[10px] text-slate-400 mt-0.5">
+                                    <span className="block truncate text-xs text-slate-700">{u.email}</span>
+                                    <span className="mt-0.5 block text-[10px] text-slate-600">
                                         {u.roles.length} role{u.roles.length === 1 ? "" : "s"}
                                         {!u.emailVerified ? " · unverified email" : ""}
                                     </span>
@@ -161,61 +269,114 @@ export function UsersAdminClient() {
                     </ul>
                 </div>
 
-                <div className="rounded-2xl border border-white/40 bg-white/50 p-6 shadow-sm space-y-4">
+                <div className="min-w-0 space-y-4 rounded-2xl border border-white/40 bg-white/50 p-5 shadow-sm sm:p-6">
                     {!selected ? (
-                        <p className="text-slate-600">No users found.</p>
+                        <p className="text-sm text-slate-700">No users found.</p>
                     ) : (
                         <>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div>
-                                    <h2 className="text-lg font-semibold text-slate-900">{selected.name}</h2>
-                                    <p className="text-sm text-slate-600">{selected.email}</p>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+                                <div className="min-w-0">
+                                    <h2 className="wrap-break-word text-lg font-semibold text-slate-900">{selected.name}</h2>
+                                    <p className="wrap-break-word text-sm text-slate-700">{selected.email}</p>
                                 </div>
                                 <button
                                     type="button"
                                     onClick={() => void saveRoles()}
                                     disabled={saving}
-                                    className="rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                                    className="h-10 rounded-lg bg-brand-700 px-4 text-sm font-semibold text-white hover:bg-brand-800 disabled:opacity-50 sm:w-auto"
                                 >
                                     {saving ? "Saving…" : "Save roles"}
                                 </button>
                             </div>
 
-                            <p className="text-sm text-slate-600">
+                            <p className="text-sm text-slate-700">
                                 Check every role this user should have. Uncheck all to remove every role (they will have no permissions until you assign again).
                             </p>
 
-                            <div className="space-y-2 rounded-xl border border-slate-100 bg-white/80 p-4 max-h-[50vh] overflow-y-auto">
+                            <div className="max-h-[40vh] space-y-2 overflow-y-auto rounded-xl border border-slate-100 bg-white/80 p-3 sm:p-4">
                                 {roleOptions.map((r) => (
                                     <label
                                         key={r.id}
-                                        className={`flex items-start gap-3 rounded-lg px-2 py-2 text-sm ${r.enabled === false ? "opacity-60" : ""}`}
+                                        className={`flex min-h-[44px] cursor-pointer items-start gap-3 rounded-lg px-2 py-2 text-sm hover:bg-slate-50 ${r.enabled === false ? "opacity-60" : ""}`}
                                     >
                                         <input
                                             type="checkbox"
-                                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600"
+                                            className="mt-1 h-4 w-4 rounded border-slate-300 text-brand-700"
                                             checked={draftRoleIds.has(r.id)}
                                             onChange={() => toggleRole(r.id)}
                                             disabled={saving}
                                         />
-                                        <span>
-                                            <span className="font-medium text-slate-900">{r.name}</span>
-                                            <span className="text-slate-500"> · </span>
-                                            <span className="font-mono text-xs text-slate-600">{r.slug}</span>
+                                        <span className="min-w-0 flex-1">
+                                            <span className="wrap-break-word font-semibold text-slate-900">{r.name}</span>
+                                            <span className="text-slate-600"> · </span>
+                                            <span className="wrap-break-word font-mono text-xs text-slate-700">{r.slug}</span>
                                             {r.isSystem ? (
-                                                <span className="ml-2 text-[10px] font-semibold uppercase text-slate-400">system</span>
+                                                <span className="ml-2 text-[10px] font-semibold uppercase text-slate-600">system</span>
                                             ) : null}
                                             {r.enabled === false ? (
-                                                <span className="ml-2 text-[10px] font-semibold uppercase text-amber-700">disabled role</span>
+                                                <span className="ml-2 text-[10px] font-semibold uppercase text-amber-800">disabled role</span>
                                             ) : null}
                                         </span>
                                     </label>
                                 ))}
                             </div>
+
+                            <div className="space-y-3 border-t border-slate-200 pt-4">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-slate-900">Feature limit overrides</h3>
+                                        <p className="text-xs text-slate-600">
+                                            Leave blank to use global defaults. Type <span className="font-mono">unlimited</span> for no
+                                            cap. Period follows global settings
+                                            {userLimits ? ` (${userLimits.effective.period})` : ""}.
+                                        </p>
+                                    </div>
+                                    {canEditLimits ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => void saveUserLimits()}
+                                            disabled={savingLimits}
+                                            className="h-10 rounded-lg border border-brand-300 bg-white px-4 text-sm font-semibold text-brand-900 hover:bg-brand-50 disabled:opacity-50"
+                                        >
+                                            {savingLimits ? "Saving…" : "Save limits"}
+                                        </button>
+                                    ) : null}
+                                </div>
+                                {userLimits ? (
+                                    <div className="space-y-2 rounded-xl border border-slate-100 bg-white/80 p-3">
+                                        {FEATURE_LIMIT_KEYS.map((key) => {
+                                            const usage = userLimits.usage.find((u) => u.key === key);
+                                            return (
+                                                <label key={key} className="block text-sm">
+                                                    <span className="font-medium text-slate-800">{FEATURE_LIMIT_LABELS[key]}</span>
+                                                    <span className="ml-2 text-xs text-slate-600">
+                                                        used {usage?.used ?? 0}
+                                                        {usage?.limit === null || usage?.limit === undefined
+                                                            ? " / ∞"
+                                                            : ` / ${usage.limit}`}
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        className="mt-1 h-10 w-full rounded-lg border border-slate-200 px-3 text-sm"
+                                                        placeholder={`Global: ${userLimits.effective.limits[key] ?? "unlimited"}`}
+                                                        value={draftLimits[key] ?? ""}
+                                                        disabled={!canEditLimits || savingLimits}
+                                                        onChange={(e) =>
+                                                            setDraftLimits((prev) => ({ ...prev, [key]: e.target.value }))
+                                                        }
+                                                    />
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <p className="text-xs text-slate-600">Loading usage… (needs limits:read)</p>
+                                )}
+                            </div>
                         </>
                     )}
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }

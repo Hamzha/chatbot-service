@@ -15,6 +15,10 @@ Requires-Dist: openai>=1.40.0
 Requires-Dist: requests>=2.32.0
 Requires-Dist: chromadb>=0.5.5
 Requires-Dist: pypdf>=4.2.0
+Requires-Dist: PyJWT>=2.9.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.0; extra == "dev"
+Requires-Dist: ruff>=0.7.0; extra == "dev"
 
 # Chatbot API
 

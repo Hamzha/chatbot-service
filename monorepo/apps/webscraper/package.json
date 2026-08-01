@@ -9,6 +9,7 @@
     "lint": "echo No JS lint for Python service",
     "check-types": "echo No type-check for Python service",
     "start": ".venv\\Scripts\\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+    "test": ".venv\\Scripts\\python -m pytest -q",
     "install:python": ".venv\\Scripts\\pip install -r requirements.txt",
     "install:playwright": ".venv\\Scripts\\playwright install chromium"
   }

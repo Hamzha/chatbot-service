@@ -2,14 +2,50 @@ from __future__ import annotations
 
 import hashlib
 
-from app.contracts import IngestInput, IngestOutput, QueryInput, QueryOutput
-from app.pdf_loader import load_and_chunk_pdf
+from app.config import settings
+from app.contracts import IngestInput, IngestOutput, IngestTextInput, QueryInput, QueryOutput
+from app.pdf_loader import chunk_text, load_and_chunk_pdf
 from app.providers import Embedder, Generator
 from app.vector_store import ChromaVectorStore
 
 
+def _count_relevant_contexts(contexts, max_distance: float) -> int:
+    """Count chunks whose Chroma distance is within the relevance threshold.
+
+    Chunks without a distance (older payloads, embedding errors) are treated as
+    relevant to avoid false-positive escalations.
+    """
+    n = 0
+    for c in contexts:
+        if c.distance is None or c.distance <= max_distance:
+            n += 1
+    return n
+
+
 def _deterministic_id(user_id: str, source_id: str, i: int) -> str:
     return hashlib.sha256(f"{user_id}:{source_id}:{i}".encode("utf-8")).hexdigest()[:32]
+
+
+def _replace_source_chunks_atomically(
+    *,
+    store: ChromaVectorStore,
+    user_id: str,
+    source_id: str,
+    chunks: list[str],
+    vectors: list[list[float]],
+) -> None:
+    old_count = store.count_source_chunks(user_id=user_id, source_id=source_id)
+    ids = [_deterministic_id(user_id, source_id, i) for i in range(len(chunks))]
+    store.upsert(
+        ids=ids,
+        vectors=vectors,
+        docs=chunks,
+        sources=[source_id] * len(chunks),
+        user_ids=[user_id] * len(chunks),
+    )
+    if old_count > len(chunks):
+        stale_ids = [_deterministic_id(user_id, source_id, i) for i in range(len(chunks), old_count)]
+        store.delete_ids(stale_ids)
 
 
 class IngestPdfUseCase:
@@ -20,15 +56,38 @@ class IngestPdfUseCase:
     def execute(self, data: IngestInput) -> IngestOutput:
         chunks = load_and_chunk_pdf(data.pdf_path)
         if not chunks:
+            self.store.delete_source(user_id=data.user_id, source_id=data.source_id)
             return IngestOutput(ingested=0, source=data.source_id)
         vectors = self.embedder.embed_texts(chunks)
-        ids = [_deterministic_id(data.user_id, data.source_id, i) for i in range(len(chunks))]
-        self.store.upsert(
-            ids=ids,
+        _replace_source_chunks_atomically(
+            store=self.store,
+            user_id=data.user_id,
+            source_id=data.source_id,
+            chunks=chunks,
             vectors=vectors,
-            docs=chunks,
-            sources=[data.source_id] * len(chunks),
-            user_ids=[data.user_id] * len(chunks),
+        )
+        return IngestOutput(ingested=len(chunks), source=data.source_id)
+
+
+class IngestTextUseCase:
+    """Chunk plain text (e.g. scraped HTML), embed, and upsert into Chroma for RAG."""
+
+    def __init__(self, embedder: Embedder, store: ChromaVectorStore) -> None:
+        self.embedder = embedder
+        self.store = store
+
+    def execute(self, data: IngestTextInput) -> IngestOutput:
+        chunks = chunk_text(data.text_content)
+        if not chunks:
+            self.store.delete_source(user_id=data.user_id, source_id=data.source_id)
+            return IngestOutput(ingested=0, source=data.source_id)
+        vectors = self.embedder.embed_texts(chunks)
+        _replace_source_chunks_atomically(
+            store=self.store,
+            user_id=data.user_id,
+            source_id=data.source_id,
+            chunks=chunks,
+            vectors=vectors,
         )
         return IngestOutput(ingested=len(chunks), source=data.source_id)
 
@@ -66,6 +125,6 @@ class QueryRagUseCase:
         return QueryOutput(
             answer=answer.strip(),
             sources=sorted({c.source for c in contexts}),
-            num_contexts=len(contexts),
+            num_contexts=_count_relevant_contexts(contexts, settings.rag_relevance_max_distance),
         )
 

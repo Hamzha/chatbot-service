@@ -37,6 +37,8 @@ vi.mock("@/lib/db/chatbotDocumentRepo", () => ({
     createPendingChatbotDocument: vi.fn(),
     getChatbotDocument: vi.fn(),
     deleteChatbotDocumentById: vi.fn(),
+    deleteChatbotDocumentsByRagSourceKeys: vi.fn(),
+    upsertChatbotDocument: vi.fn(),
 }));
 
 vi.mock("@/lib/db/chatSessionRepo", () => ({
@@ -55,6 +57,26 @@ vi.mock("@/lib/db/chatbotMessageRepo", () => ({
     deleteMessagesForSession: vi.fn(),
 }));
 
+vi.mock("@/lib/db/crawlJobRepo", () => ({
+    createCrawlJob: vi.fn(),
+    getCrawlJob: vi.fn(),
+    listCrawlJobsForUser: vi.fn(),
+}));
+
+vi.mock("@/lib/db/apiRequestLogRepo", () => ({
+    createApiRequestLog: vi.fn(),
+    listApiRequestLogs: vi.fn(),
+}));
+
+vi.mock("@/lib/scraper/crawlJobWorker", () => ({
+    runCrawlJob: vi.fn(),
+}));
+
+vi.mock("@/lib/rateLimit/requireRateLimit", () => ({
+    requireRateLimitByUser: vi.fn(),
+    requireRateLimitByIp: vi.fn(),
+}));
+
 import { getSessionCookie } from "@repo/auth/lib/cookies";
 import { verifySessionToken } from "@repo/auth/lib/jwt";
 import { getAuthContextForUserId } from "@/lib/auth/authorization";
@@ -67,7 +89,14 @@ import {
 } from "@/lib/db/roleRepo";
 import { getAdminUserRow, listUsersForAdmin, updateUserRoleIds } from "@/lib/db/userRepo";
 import { listPermissions } from "@/lib/db/permissionRepo";
-import { finalizeChatbotDocument, listChatbotDocuments } from "@/lib/db/chatbotDocumentRepo";
+import {
+    deleteChatbotDocumentById,
+    deleteChatbotDocumentsByRagSourceKeys,
+    finalizeChatbotDocument,
+    getChatbotDocument,
+    listChatbotDocuments,
+    upsertChatbotDocument,
+} from "@/lib/db/chatbotDocumentRepo";
 import {
     createChatSession,
     deleteChatSession,
@@ -79,9 +108,15 @@ import {
 import {
     appendChatbotExchange,
     clearChatbotMessages,
-    deleteMessagesForSession,
     listChatbotMessages,
 } from "@/lib/db/chatbotMessageRepo";
+import {
+    createCrawlJob,
+    getCrawlJob,
+    listCrawlJobsForUser,
+} from "@/lib/db/crawlJobRepo";
+import { listApiRequestLogs } from "@/lib/db/apiRequestLogRepo";
+import { runCrawlJob } from "@/lib/scraper/crawlJobWorker";
 
 import { GET as adminPermissionsGet } from "@/app/api/admin/permissions/route";
 import { GET as adminRolesGet, POST as adminRolesPost } from "@/app/api/admin/roles/route";
@@ -106,9 +141,15 @@ import {
     PATCH as chatbotSessionByIdPatch,
 } from "@/app/api/chatbot/sessions/[sessionId]/route";
 import { DELETE as chatbotMessagesDelete, GET as chatbotMessagesGet, POST as chatbotMessagesPost } from "@/app/api/chatbot/messages/route";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { POST as scraperScrapePost } from "@/app/api/scraper/scrape/route";
-import { POST as scraperCrawlPost } from "@/app/api/scraper/crawl/route";
+import { requireRateLimitByIp, requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
+import {
+    GET as scraperCrawlJobsGet,
+    POST as scraperCrawlJobsPost,
+} from "@/app/api/scraper/crawl/jobs/route";
+import { GET as scraperCrawlJobByIdGet } from "@/app/api/scraper/crawl/jobs/[jobId]/route";
+import { GET as apiLogsGet } from "@/app/api/logs/route";
 
 function authCtx(permissions: Iterable<string>, userId = "user-1"): AuthContext {
     return {
@@ -134,6 +175,8 @@ function goodSession(sub = "user-1"): void {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(requireRateLimitByUser).mockResolvedValue(undefined);
+    vi.mocked(requireRateLimitByIp).mockResolvedValue(undefined);
 });
 
 describe("GET /api/admin/roles", () => {
@@ -243,6 +286,16 @@ describe("GET /api/admin/users", () => {
         const body = (await res.json()) as { users: unknown[] };
         expect(body.users).toHaveLength(1);
     });
+
+    it("429 when the users list rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await adminUsersGet();
+        expect(res.status).toBe(429);
+    });
 });
 
 describe("GET /api/admin/permissions", () => {
@@ -325,6 +378,26 @@ describe("POST /api/admin/roles", () => {
         expect(res.status).toBe(201);
         const body = (await res.json()) as { role: { slug: string } };
         expect(body.role.slug).toBe("custom");
+    });
+
+    it("429 when role creation rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["roles:create"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await adminRolesPost(
+            new Request("http://localhost/api/admin/roles", {
+                method: "POST",
+                body: JSON.stringify({
+                    name: "Custom",
+                    slug: "custom",
+                    permissionCodes: ["dashboard:read"],
+                }),
+                headers: { "content-type": "application/json" },
+            }),
+        );
+        expect(res.status).toBe(429);
     });
 });
 
@@ -456,6 +529,59 @@ describe("GET /api/chatbot/documents", () => {
         const body = (await res.json()) as { sources: { id: string }[] };
         expect(body.sources).toHaveLength(1);
         expect(body.sources[0].id).toBe("d1");
+    });
+
+    it("when Mongo empty, backfill imports uploads only — skips https Chroma sources (orphaned crawl chunks)", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:read"]));
+
+        const afterBackfillDoc = {
+            id: "pdf-1",
+            userId: "user-1",
+            source: "memo.pdf",
+            ragSourceKey: "memo.pdf",
+            chunks: 2,
+            kind: "upload" as const,
+            pages: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+
+        vi.mocked(listChatbotDocuments)
+            .mockResolvedValueOnce([])
+            .mockResolvedValueOnce([afterBackfillDoc]);
+
+        vi.mocked(upsertChatbotDocument).mockResolvedValue(afterBackfillDoc);
+
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+            const full = typeof input === "string" ? input : input.url;
+            if (/v1\/sources($|\?)/.test(full)) {
+                return new Response(
+                    JSON.stringify({
+                        sources: [
+                            { source: "https://orphan.test/page", chunks: 99 },
+                            { source: "memo.pdf", chunks: 2 },
+                        ],
+                    }),
+                    { status: 200 },
+                );
+            }
+            return new Response("not found", { status: 404 });
+        });
+
+        try {
+            const res = await chatbotDocumentsGet();
+            expect(res.status).toBe(200);
+
+            expect(vi.mocked(upsertChatbotDocument)).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(upsertChatbotDocument)).toHaveBeenCalledWith("user-1", "memo.pdf", 2);
+
+            const body = (await res.json()) as { sources: { source: string }[] };
+            expect(body.sources).toHaveLength(1);
+            expect(body.sources[0].source).toBe("memo.pdf");
+        } finally {
+            fetchSpy.mockRestore();
+        }
     });
 });
 
@@ -721,6 +847,220 @@ describe("DELETE /api/chatbot/documents/[documentId]", () => {
         const res = await chatbotDocumentByIdDelete(new Request("http://localhost"), { params });
         expect(res.status).toBe(403);
     });
+
+    it("fans out vector deletions to every page when deleting a site aggregator", async () => {
+        goodSession();
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(2);
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:delete"]));
+        vi.mocked(getChatbotDocument).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 9,
+            kind: "site",
+            pages: [
+                { key: "https://example.com/a", chunks: 3 },
+                { key: "https://example.com/b", chunks: 4 },
+                { key: "https://example.com/c", chunks: 2 },
+            ],
+            createdAt: "",
+            updatedAt: "",
+        });
+        vi.mocked(deleteChatbotDocumentById).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 9,
+            kind: "site",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+
+        const deletedKeys: string[] = [];
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+            const full = typeof url === "string" ? url : (url as URL).toString();
+            const m = full.match(/\/v1\/sources\/([^?]+)/);
+            if (m) deletedKeys.push(decodeURIComponent(m[1]));
+            return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        });
+
+        try {
+            const res = await chatbotDocumentByIdDelete(new Request("http://localhost"), { params });
+            expect(res.status).toBe(200);
+            const body = (await res.json()) as { ok: boolean; deletedPages: number };
+            expect(body.ok).toBe(true);
+            expect(body.deletedPages).toBe(4);
+            expect(deletedKeys.sort()).toEqual([
+                "https://example.com",
+                "https://example.com/a",
+                "https://example.com/b",
+                "https://example.com/c",
+            ]);
+            expect(vi.mocked(deleteChatbotDocumentsByRagSourceKeys)).toHaveBeenCalledWith(
+                "user-1",
+                expect.arrayContaining([
+                    "https://example.com",
+                    "https://example.com/a",
+                    "https://example.com/b",
+                    "https://example.com/c",
+                ]),
+            );
+            expect(vi.mocked(deleteChatbotDocumentById)).toHaveBeenCalledWith(
+                "user-1",
+                "507f1f77bcf86cd799439011",
+            );
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it("discovers same-origin URL sources from Chroma when site row pages array is empty", async () => {
+        goodSession();
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(2);
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:delete"]));
+        vi.mocked(getChatbotDocument).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 9,
+            kind: "site",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+        vi.mocked(deleteChatbotDocumentById).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 9,
+            kind: "site",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+
+        const deletedKeys: string[] = [];
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+            const full = typeof input === "string" ? input : (input as URL).toString();
+            if (/v1\/sources($|\?)/.test(full)) {
+                return new Response(
+                    JSON.stringify({
+                        sources: [
+                            { source: "https://example.com/p1", chunks: 3 },
+                            { source: "https://other.net/x", chunks: 1 },
+                        ],
+                    }),
+                    { status: 200 },
+                );
+            }
+            const m = full.match(/\/v1\/sources\/([^?]+)/);
+            if (m) deletedKeys.push(decodeURIComponent(m[1]));
+            return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        });
+
+        try {
+            const res = await chatbotDocumentByIdDelete(new Request("http://localhost"), { params });
+            expect(res.status).toBe(200);
+            expect(deletedKeys.sort()).toEqual(["https://example.com", "https://example.com/p1"]);
+            const body = (await res.json()) as { deletedPages: number };
+            expect(body.deletedPages).toBe(2);
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it("deletes exactly one vector source for legacy upload rows", async () => {
+        goodSession();
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(1);
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:delete"]));
+        vi.mocked(getChatbotDocument).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "cv.pdf",
+            ragSourceKey: "rag-abc",
+            chunks: 7,
+            kind: "upload",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+        vi.mocked(deleteChatbotDocumentById).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "cv.pdf",
+            ragSourceKey: "rag-abc",
+            chunks: 7,
+            kind: "upload",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+
+        const deletedKeys: string[] = [];
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+            const full = typeof url === "string" ? url : (url as URL).toString();
+            const m = full.match(/\/v1\/sources\/([^?]+)/);
+            if (m) deletedKeys.push(decodeURIComponent(m[1]));
+            return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        });
+
+        try {
+            const res = await chatbotDocumentByIdDelete(new Request("http://localhost"), { params });
+            expect(res.status).toBe(200);
+            expect(deletedKeys).toEqual(["rag-abc"]);
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
+
+    it("tolerates a 404 from the vector store (treats as already-gone) and still deletes the Mongo row", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_documents:delete"]));
+        vi.mocked(getChatbotDocument).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 2,
+            kind: "site",
+            pages: [
+                { key: "https://example.com/a", chunks: 1 },
+                { key: "https://example.com/b", chunks: 1 },
+            ],
+            createdAt: "",
+            updatedAt: "",
+        });
+        vi.mocked(deleteChatbotDocumentById).mockResolvedValue({
+            id: "507f1f77bcf86cd799439011",
+            userId: "user-1",
+            source: "example.com",
+            ragSourceKey: "https://example.com",
+            chunks: 2,
+            kind: "site",
+            pages: [],
+            createdAt: "",
+            updatedAt: "",
+        });
+
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+            return new Response("not found", { status: 404 });
+        });
+        vi.mocked(deleteChatbotDocumentsByRagSourceKeys).mockResolvedValue(2);
+
+        try {
+            const res = await chatbotDocumentByIdDelete(new Request("http://localhost"), { params });
+            expect(res.status).toBe(200);
+            expect(vi.mocked(deleteChatbotDocumentsByRagSourceKeys)).toHaveBeenCalled();
+            expect(vi.mocked(deleteChatbotDocumentById)).toHaveBeenCalled();
+        } finally {
+            fetchSpy.mockRestore();
+        }
+    });
 });
 
 describe("POST /api/chatbot/ingest", () => {
@@ -816,6 +1156,22 @@ describe("POST /api/chatbot/sessions", () => {
         expect(res.status).toBe(200);
         const body = (await res.json()) as { session: { id: string } };
         expect(body.session.id).toBe(sid);
+    });
+
+    it("429 when session creation rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_sessions:create"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await chatbotSessionsPost(
+            new Request("http://localhost", {
+                method: "POST",
+                body: JSON.stringify({ name: "S", documentIds: ["507f1f77bcf86cd799439011"] }),
+                headers: { "content-type": "application/json" },
+            }),
+        );
+        expect(res.status).toBe(429);
     });
 });
 
@@ -987,6 +1343,26 @@ describe("POST /api/chatbot/messages", () => {
         const body = (await res.json()) as { ok: boolean };
         expect(body.ok).toBe(true);
     });
+
+    it("429 when message creation rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["chatbot_messages:create"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await chatbotMessagesPost(
+            new Request("http://localhost", {
+                method: "POST",
+                body: JSON.stringify({
+                    question: "q",
+                    answer: "a",
+                    sessionId: "507f1f77bcf86cd799439099",
+                }),
+                headers: { "content-type": "application/json" },
+            }),
+        );
+        expect(res.status).toBe(429);
+    });
 });
 
 describe("DELETE /api/chatbot/messages", () => {
@@ -1019,17 +1395,243 @@ describe("DELETE /api/chatbot/messages", () => {
     });
 });
 
-describe("POST /api/scraper/crawl", () => {
+function fakeCrawlJob(overrides: Partial<Record<string, unknown>> = {}) {
+    return {
+        id: "507f1f77bcf86cd799439011",
+        userId: "user-1",
+        startUrl: "https://example.com",
+        mode: "auto",
+        maxPages: 10,
+        maxDepth: 2,
+        state: "queued" as const,
+        doneCount: 0,
+        failedCount: 0,
+        urls: [],
+        ingestedPages: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        ...overrides,
+    };
+}
+
+describe("GET /api/scraper/crawl/jobs", () => {
+    it("401 without session", async () => {
+        noSession();
+        const res = await scraperCrawlJobsGet();
+        expect(res.status).toBe(401);
+    });
+
     it("403 without scraper:create", async () => {
         goodSession();
-        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:read"]));
-        const res = await scraperCrawlPost(
-            new NextRequest("http://localhost/api/scraper/crawl", {
-                method: "POST",
-                body: JSON.stringify({ seedUrl: "https://example.com" }),
-                headers: { "content-type": "application/json" },
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["dashboard:read"]));
+        const res = await scraperCrawlJobsGet();
+        expect(res.status).toBe(403);
+    });
+
+    it("200 returns jobs list", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        vi.mocked(listCrawlJobsForUser).mockResolvedValue([fakeCrawlJob()] as never);
+        const res = await scraperCrawlJobsGet();
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { jobs: unknown[] };
+        expect(body.jobs).toHaveLength(1);
+    });
+});
+
+describe("POST /api/scraper/crawl/jobs", () => {
+    const makeReq = (body: unknown) =>
+        new NextRequest("http://localhost/api/scraper/crawl/jobs", {
+            method: "POST",
+            body: typeof body === "string" ? body : JSON.stringify(body),
+            headers: { "content-type": "application/json" },
+        });
+
+    it("401 without session", async () => {
+        noSession();
+        const res = await scraperCrawlJobsPost(makeReq({ url: "https://example.com" }));
+        expect(res.status).toBe(401);
+    });
+
+    it("403 without scraper:create", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["dashboard:read"]));
+        const res = await scraperCrawlJobsPost(makeReq({ url: "https://example.com" }));
+        expect(res.status).toBe(403);
+    });
+
+    it("400 when body is invalid JSON", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        const res = await scraperCrawlJobsPost(makeReq("not json"));
+        expect(res.status).toBe(400);
+    });
+
+    it("400 when url is missing", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        const res = await scraperCrawlJobsPost(makeReq({}));
+        expect(res.status).toBe(400);
+    });
+
+    it("400 when url is not a valid http(s) URL", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        const res = await scraperCrawlJobsPost(makeReq({ url: "ftp://bad" }));
+        expect(res.status).toBe(400);
+    });
+
+    it("202 returns job and kicks off worker", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        vi.mocked(createCrawlJob).mockResolvedValue(fakeCrawlJob() as never);
+        const res = await scraperCrawlJobsPost(
+            makeReq({ url: "https://example.com", mode: "static", max_pages: 5, max_depth: 1 }),
+        );
+        expect(res.status).toBe(202);
+        expect(createCrawlJob).toHaveBeenCalledWith(
+            "user-1",
+            expect.objectContaining({
+                startUrl: "https://example.com",
+                mode: "static",
+                maxPages: 5,
+                maxDepth: 1,
             }),
         );
+        expect(runCrawlJob).toHaveBeenCalledWith(
+            expect.objectContaining({
+                jobId: "507f1f77bcf86cd799439011",
+                userId: "user-1",
+                startUrl: "https://example.com",
+            }),
+        );
+    });
+
+    it("clamps out-of-range max_pages and max_depth and falls back to 'auto' mode", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        vi.mocked(createCrawlJob).mockResolvedValue(fakeCrawlJob() as never);
+        await scraperCrawlJobsPost(
+            makeReq({ url: "https://example.com", mode: "bogus", max_pages: 9999, max_depth: -4 }),
+        );
+        expect(createCrawlJob).toHaveBeenCalledWith(
+            "user-1",
+            expect.objectContaining({ mode: "auto", maxPages: 200, maxDepth: 1 }),
+        );
+    });
+});
+
+describe("GET /api/scraper/crawl/jobs/[jobId]", () => {
+    const params = (jobId: string) => Promise.resolve({ jobId });
+
+    it("401 without session", async () => {
+        noSession();
+        const res = await scraperCrawlJobByIdGet(new Request("http://localhost"), {
+            params: params("x"),
+        });
+        expect(res.status).toBe(401);
+    });
+
+    it("403 without scraper:create", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["dashboard:read"]));
+        const res = await scraperCrawlJobByIdGet(new Request("http://localhost"), {
+            params: params("507f1f77bcf86cd799439011"),
+        });
         expect(res.status).toBe(403);
+    });
+
+    it("404 when job is missing", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        vi.mocked(getCrawlJob).mockResolvedValue(null);
+        const res = await scraperCrawlJobByIdGet(new Request("http://localhost"), {
+            params: params("507f1f77bcf86cd799439011"),
+        });
+        expect(res.status).toBe(404);
+    });
+
+    it("200 returns the job when owned by the caller", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["scraper:create"]));
+        vi.mocked(getCrawlJob).mockResolvedValue(
+            fakeCrawlJob({ state: "running", doneCount: 3 }) as never,
+        );
+        const res = await scraperCrawlJobByIdGet(new Request("http://localhost"), {
+            params: params("507f1f77bcf86cd799439011"),
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { job: { state: string; doneCount: number } };
+        expect(body.job.state).toBe("running");
+        expect(body.job.doneCount).toBe(3);
+    });
+});
+
+describe("GET /api/logs", () => {
+    it("403 without users:read", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["roles:read"]));
+        const res = await apiLogsGet(new Request("http://localhost/api/logs"));
+        expect(res.status).toBe(403);
+    });
+
+    it("429 when logs rate limit is exceeded", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"]));
+        vi.mocked(requireRateLimitByUser).mockResolvedValue(
+            NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        );
+        const res = await apiLogsGet(new Request("http://localhost/api/logs"));
+        expect(res.status).toBe(429);
+    });
+
+    it("400 on invalid query params", async () => {
+        goodSession();
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"]));
+        const res = await apiLogsGet(new Request("http://localhost/api/logs?status=999"));
+        expect(res.status).toBe(400);
+    });
+
+    it("200 with filtered logs payload", async () => {
+        goodSession("admin-1");
+        vi.mocked(getAuthContextForUserId).mockResolvedValue(authCtx(["users:read"], "admin-1"));
+        vi.mocked(listApiRequestLogs).mockResolvedValue({
+            total: 1,
+            logs: [
+                {
+                    id: "l1",
+                    requestId: "req-1",
+                    method: "GET",
+                    route: "/api/admin/users",
+                    status: 200,
+                    success: true,
+                    durationMs: 14,
+                    occurredAt: new Date().toISOString(),
+                    userId: "admin-1",
+                    userEmail: "admin@example.com",
+                    ip: "127.0.0.1",
+                    userAgent: "vitest",
+                    errorMessage: null,
+                },
+            ],
+        });
+        const res = await apiLogsGet(
+            new Request(
+                "http://localhost/api/logs?method=get&status=200&success=true&limit=50&offset=0",
+            ),
+        );
+        expect(res.status).toBe(200);
+        expect(listApiRequestLogs).toHaveBeenCalledWith(
+            expect.objectContaining({
+                method: "get",
+                status: 200,
+                success: true,
+                limit: 50,
+                offset: 0,
+            }),
+        );
+        const body = (await res.json()) as { total: number; logs: unknown[] };
+        expect(body.total).toBe(1);
+        expect(body.logs).toHaveLength(1);
     });
 });

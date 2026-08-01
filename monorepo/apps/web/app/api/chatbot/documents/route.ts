@@ -1,78 +1,107 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
-import { getChatbotApiBaseUrl } from "@/lib/chatbot/getChatbotApiBaseUrl";
+import { internalServerError, notFoundError, parseJsonBody, validationError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
+import {
+    getRagServiceBaseUrl,
+    ragListSourcesRequestUrl,
+    ragUserHeaders,
+} from "@/lib/chatbot/ragService";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
 import {
     finalizeChatbotDocument,
     listChatbotDocuments,
     upsertChatbotDocument,
 } from "@/lib/db/chatbotDocumentRepo";
 
-/** When Mongo has no rows yet, copy sources from the chatbot (Chroma) into Mongo once. */
+/**
+ * Crawl/scrape ingestion uses each page URL as the Chroma `source` id while Mongo keeps a single
+ * site row. If Mongo is empty (e.g. after deleting that row) but orphaned vectors remain, we must
+ * NOT backfill those URL sources — we would create one library row per page and they would
+ * reappear on every refresh.
+ */
+function isWebScrapeVectorSourceId(source: string): boolean {
+    return /^https?:\/\//i.test(source.trim());
+}
+
+/** When Mongo has no rows yet, copy non-URL sources from the chatbot (Chroma) into Mongo once. */
 async function backfillFromChatbotIfEmpty(userId: string): Promise<void> {
     try {
-        const res = await fetch(`${getChatbotApiBaseUrl()}/v1/sources`, {
+        const baseUrl = getRagServiceBaseUrl();
+        const res = await fetch(ragListSourcesRequestUrl(baseUrl, userId), {
             method: "GET",
-            headers: { "x-user-id": userId },
+            headers: ragUserHeaders(userId),
         });
         const text = await res.text();
         if (!res.ok || !text.trim()) return;
         const data = JSON.parse(text) as { sources?: { source: string; chunks: number }[] };
         const sources = data.sources ?? [];
         for (const row of sources) {
-            await upsertChatbotDocument(userId, row.source, row.chunks);
+            const src = typeof row.source === "string" ? row.source.trim() : "";
+            if (!src || isWebScrapeVectorSourceId(src)) continue;
+            await upsertChatbotDocument(userId, src, row.chunks);
         }
     } catch {
         // Chatbot down or invalid JSON — leave Mongo as-is
     }
 }
 
-export async function GET() {
+const finalizeDocumentSchema = z.object({
+    documentId: z.string().trim().min(1, "Missing or invalid documentId"),
+    chunks: z.number().finite().int().min(0, "Missing or invalid chunks"),
+});
+
+async function getDocuments() {
     const auth = await requireUserIdWithPermission("chatbot_documents:read");
     if (auth instanceof NextResponse) return auth;
     const { userId } = auth;
+  const limited = await requireRateLimitByUser(userId, "chatbot:documents:read", {
+      limit: 60,
+      windowSec: 60,
+  });
+  if (limited) return limited;
 
-    let records = await listChatbotDocuments(userId);
-    if (records.length === 0) {
-        await backfillFromChatbotIfEmpty(userId);
-        records = await listChatbotDocuments(userId);
-    }
+  try {
+      let records = await listChatbotDocuments(userId);
+      if (records.length === 0) {
+          await backfillFromChatbotIfEmpty(userId);
+          records = await listChatbotDocuments(userId);
+      }
 
-    return NextResponse.json({
-        sources: records.map((r) => ({
-            id: r.id,
-            source: r.source,
-            ragSourceKey: r.ragSourceKey,
-            chunks: r.chunks,
-        })),
-    });
+      return NextResponse.json({
+          sources: records.map((r) => ({
+              id: r.id,
+              source: r.source,
+              ragSourceKey: r.ragSourceKey,
+              chunks: r.chunks,
+              kind: r.kind,
+              pageCount: r.kind === "site" ? r.pages.length : 0,
+          })),
+      });
+  } catch (error) {
+      return internalServerError(error, "Failed to list documents");
+  }
 }
 
 /** Finalize chunk counts after ingestion: `{ documentId, chunks }`. */
-export async function POST(request: Request) {
+async function postDocuments(request: Request) {
     const auth = await requireUserIdWithPermission("chatbot_documents:update");
     if (auth instanceof NextResponse) return auth;
     const { userId } = auth;
-
-    let body: unknown;
-    try {
-        body = await request.json();
-    } catch {
-        return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-    }
-
-    const b = body as { documentId?: unknown; chunks?: unknown };
-    if (typeof b.documentId !== "string" || !b.documentId.trim()) {
-        return NextResponse.json({ error: "Missing or invalid documentId" }, { status: 400 });
-    }
-    const chunks = typeof b.chunks === "number" && Number.isFinite(b.chunks) ? Math.floor(b.chunks) : NaN;
-    if (chunks < 0 || Number.isNaN(chunks)) {
-        return NextResponse.json({ error: "Missing or invalid chunks" }, { status: 400 });
-    }
+    const limited = await requireRateLimitByUser(userId, "chatbot:documents:update", {
+        limit: 30,
+        windowSec: 60,
+    });
+    if (limited) return limited;
+    const parsed = await parseJsonBody(request, finalizeDocumentSchema);
+    if (!parsed.ok) return parsed.response;
+    const { documentId, chunks } = parsed.data;
 
     try {
-        const record = await finalizeChatbotDocument(userId, b.documentId.trim(), chunks);
+        const record = await finalizeChatbotDocument(userId, documentId, chunks);
         if (!record) {
-            return NextResponse.json({ error: "Document not found" }, { status: 404 });
+            return notFoundError("Document not found");
         }
         return NextResponse.json({
             id: record.id,
@@ -80,7 +109,10 @@ export async function POST(request: Request) {
             ragSourceKey: record.ragSourceKey,
             chunks: record.chunks,
         });
-    } catch (e) {
-        return NextResponse.json({ error: "Failed to save document record", detail: String(e) }, { status: 500 });
+    } catch (error) {
+        return internalServerError(error, "Failed to save document record");
     }
 }
+
+export const GET = withApiLogging(getDocuments);
+export const POST = withApiLogging(postDocuments);

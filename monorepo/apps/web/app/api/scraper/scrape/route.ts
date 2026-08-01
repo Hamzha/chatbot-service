@@ -1,60 +1,68 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUserIdWithPermission } from "@/lib/auth/requireApiPermission";
+import { parseJsonBody, upstreamError } from "@/lib/api/routeValidation";
+import { withApiLogging } from "@/lib/api/withApiLogging";
+import { requireRateLimitByUser } from "@/lib/rateLimit/requireRateLimit";
+import { requireFeatureQuota, recordScrapeRun } from "@/lib/limits/requireFeatureQuota";
+import { registerScrapedDocument } from "@/lib/scraper/registerScrapedDocument";
 
 const SCRAPER_API_URL = process.env.SCRAPER_API_URL || "http://localhost:8000";
-const CHATBOT_API_URL = process.env.CHATBOT_API_URL || "http://localhost:8000";
+const scrapeRequestSchema = z.object({
+    url: z.string().trim().url("url must be a valid URL"),
+    mode: z.string().optional(),
+    max_pages: z.unknown().optional(),
+    max_depth: z.unknown().optional(),
+});
 
-async function sendToChatbotService(
-  scrapedData: any,
-  sourceId: string
-): Promise<void> {
-  try {
-    // Send the text content to the chatbot service for vector DB ingestion
-    await fetch(`${CHATBOT_API_URL}/api/v1/ingest-text`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text_content: scrapedData.text_content || "",
-        source_id: sourceId,
-        title: scrapedData.title || sourceId,
-        url: scrapedData.url || "",
-      }),
-    }).catch((err) => {
-      // Log but don't fail the request if chatbot service is unavailable
-      console.error("Failed to send to chatbot service:", err);
-    });
-  } catch (err) {
-    console.error("Error sending to chatbot service:", err);
-  }
-}
+async function postScrape(req: NextRequest) {
+    try {
+        const gate = await requireUserIdWithPermission("scraper:create");
+        if (gate instanceof NextResponse) return gate;
+        const { userId } = gate;
 
-export async function POST(req: NextRequest) {
-  try {
-    const gate = await requireUserIdWithPermission("scraper:create");
-    if (gate instanceof NextResponse) return gate;
+        const limited = await requireRateLimitByUser(userId, "scraper:scrape", { limit: 20, windowSec: 60 });
+        if (limited) return limited;
 
-    const body = await req.json();
+        const quota = await requireFeatureQuota(userId, "scraperRuns");
+        if (quota) return quota;
 
-    const res = await fetch(`${SCRAPER_API_URL}/api/v1/scrape`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+        const parsed = await parseJsonBody(req, scrapeRequestSchema);
+        if (!parsed.ok) return parsed.response;
+        const body = parsed.data;
 
-    const data = await res.json();
+        const res = await fetch(`${SCRAPER_API_URL}/api/v1/scrape`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
 
-    // If scraping was successful, send to chatbot service asynchronously
-    if (data.success && data.data) {
-      const sourceId = body.url || "scraped_content";
-      // Fire and forget - don't wait for the response
-      sendToChatbotService(data.data, sourceId);
+        const data = (await res.json()) as {
+            success?: boolean;
+            data?: { text_content?: string; title?: string; url?: string };
+        };
+
+        let ingestion: { ingested: number; displaySource: string; ragSourceKey: string } | null =
+            null;
+
+        if (data.success && data.data) {
+            const row = data.data;
+            const pageUrl = body.url.trim() || row.url?.trim() || "scraped_content";
+            ingestion = await registerScrapedDocument(userId, {
+                url: pageUrl,
+                title: row.title ?? undefined,
+                textContent: row.text_content ?? "",
+            });
+            await recordScrapeRun(userId);
+        }
+
+        return NextResponse.json(
+            { ...data, ingestion: ingestion ?? undefined },
+            { status: res.status },
+        );
+    } catch (error) {
+        return upstreamError(error, "Cannot reach scraper service");
     }
-
-    return NextResponse.json(data, { status: res.status });
-  } catch (err) {
-    return NextResponse.json(
-      { success: false, error: String(err) },
-      { status: 502 }
-    );
-  }
 }
+
+export const POST = withApiLogging(postScrape);

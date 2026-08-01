@@ -1,5 +1,16 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
 
+## Environment
+
+Copy [.env.example](.env.example) to `.env.local`. **`USE_CHATBOT_API`** selects the backend for **chat, ingest, scrape→vectors, and vector deletes**:
+
+- `true` → `chatbot-api` (`CHATBOT_API_URL`, Inngest for PDF ingest)
+- `false` → `model-gateway-api` (`MODEL_GATEWAY_API_URL`, sync ingest)
+
+Both Python apps share Chroma via **`monorepo/.env.shared`** (`CHROMA_PERSIST_DIR`, `CHROMA_COLLECTION`).
+
+Full routing tables and runbooks: [`../../README.md`](../../README.md) (section **RAG & ingest routing**) and [`../../docs/apps/web/operations.md`](../../docs/apps/web/operations.md).
+
 ## Getting Started
 
 First, run the development server:

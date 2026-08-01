@@ -5,7 +5,7 @@
 export const DASHBOARD_SIDEBAR_NAV = [
     {
         id: "nav.dashboard.overview",
-        label: "Overview",
+        label: "Dashboard",
         href: "/dashboard",
         permission: "dashboard:read",
     },
@@ -28,6 +28,18 @@ export const DASHBOARD_SIDEBAR_NAV = [
         permission: "chatbot_sessions:read",
     },
     {
+        id: "nav.dashboard.get-script",
+        label: "Get Script",
+        href: "/dashboard/get-script",
+        permission: "chatbot_sessions:read",
+    },
+    {
+        id: "nav.dashboard.inbox",
+        label: "Inbox",
+        href: "/dashboard/inbox",
+        permission: "escalations:read",
+    },
+    {
         id: "nav.dashboard.admin.roles",
         label: "Roles & permissions",
         href: "/dashboard/admin/roles",
@@ -38,5 +50,11 @@ export const DASHBOARD_SIDEBAR_NAV = [
         label: "Users & roles",
         href: "/dashboard/admin/users",
         permission: "users:read",
+    },
+    {
+        id: "nav.dashboard.admin.limits",
+        label: "Feature limits",
+        href: "/dashboard/admin/limits",
+        permission: "limits:read",
     },
 ] as const;

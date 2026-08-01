@@ -2,8 +2,8 @@ import { getMongoDbUri } from "@repo/auth/lib/env";
 import mongoose, { Model, Schema, Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/client";
 import {
-  resolveSelectedDocumentsFromLibrary,
-  type SessionSelectedDocRow,
+    resolveSelectedDocumentsFromLibrary,
+    type SessionSelectedDocRow,
 } from "@/lib/chatbot/resolveSessionSelectedDocuments";
 import { ChatbotDocumentModel, effectiveRagSourceKey, type ChatbotDocDoc } from "@/lib/db/chatbotDocumentRepo";
 
@@ -13,7 +13,9 @@ export type ChatSessionRecord = {
     id: string;
     userId: string;
     name: string;
+    primaryColor: string;
     selectedRagKeys: string[];
+    autoEscalationEnabled: boolean;
     createdAt: string;
     updatedAt: string;
 };
@@ -22,7 +24,9 @@ type ChatSessionDoc = {
     _id: Types.ObjectId;
     userId: Types.ObjectId;
     name: string;
+    primaryColor: string;
     selectedRagKeys: string[];
+    autoEscalationEnabled?: boolean;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -41,10 +45,22 @@ const chatSessionSchema = new Schema<ChatSessionDoc>(
             trim: true,
             maxlength: 200,
         },
+        primaryColor: {
+            type: String,
+            required: true,
+            default: "#0f766e",
+            trim: true,
+            maxlength: 20,
+        },
         selectedRagKeys: {
             type: [String],
             required: true,
             default: [],
+        },
+        autoEscalationEnabled: {
+            type: Boolean,
+            required: true,
+            default: true,
         },
     },
     { timestamps: true },
@@ -65,7 +81,9 @@ function mapSession(r: ChatSessionDoc): ChatSessionRecord {
         id: r._id.toString(),
         userId: r.userId.toString(),
         name: r.name,
+        primaryColor: r.primaryColor,
         selectedRagKeys: [...r.selectedRagKeys],
+        autoEscalationEnabled: r.autoEscalationEnabled ?? true,
         createdAt: r.createdAt.toISOString(),
         updatedAt: r.updatedAt.toISOString(),
     };
@@ -100,6 +118,7 @@ export async function createChatSession(
     const doc = await ChatSessionModel.create({
         userId: new Types.ObjectId(userId),
         name: trimmedName,
+        primaryColor: "#0f766e",
         selectedRagKeys,
     });
     return mapSession(doc.toObject() as ChatSessionDoc);
@@ -118,6 +137,39 @@ export async function getChatSession(userId: string, sessionId: string): Promise
     const sid = new Types.ObjectId(sessionId);
     const row = await ChatSessionModel.findOne({ _id: sid, userId: uid }).lean<ChatSessionDoc | null>();
     return row ? mapSession(row) : null;
+}
+
+export async function getChatSessionById(sessionId: string): Promise<ChatSessionRecord | null> {
+    await ensureDbConnection();
+    const sid = new Types.ObjectId(sessionId);
+    const row = await ChatSessionModel.findOne({ _id: sid }).lean<ChatSessionDoc | null>();
+    return row ? mapSession(row) : null;
+}
+
+export async function ensureChatSessionForUser(
+    userId: string,
+    input: {
+        name: string;
+        primaryColor?: string;
+        selectedRagKeys?: string[];
+    },
+): Promise<ChatSessionRecord> {
+    await ensureDbConnection();
+    const uid = new Types.ObjectId(userId);
+    const trimmedName = input.name.trim() || "Untitled chat";
+    const existing = await ChatSessionModel.findOne({ userId: uid, name: trimmedName }).lean<ChatSessionDoc | null>();
+    if (existing) {
+        return mapSession(existing);
+    }
+
+    const doc = await ChatSessionModel.create({
+        userId: uid,
+        name: trimmedName,
+        primaryColor: input.primaryColor?.trim() || "#0f766e",
+        selectedRagKeys: input.selectedRagKeys ?? [],
+    });
+
+    return mapSession(doc.toObject() as ChatSessionDoc);
 }
 
 /** Resolve `selectedRagKeys` to library filenames for UI (survives navigation; works if the documents list API fails). */
@@ -139,14 +191,25 @@ export async function resolveSessionSelectedDocuments(
 export async function updateChatSession(
     userId: string,
     sessionId: string,
-    patch: { name?: string; documentIds?: string[] },
+    patch: { name?: string; documentIds?: string[]; primaryColor?: string; autoEscalationEnabled?: boolean },
 ): Promise<ChatSessionRecord | null> {
     await ensureDbConnection();
     const uid = new Types.ObjectId(userId);
     const sid = new Types.ObjectId(sessionId);
-    const update: { name?: string; selectedRagKeys?: string[] } = {};
+    const update: {
+        name?: string;
+        primaryColor?: string;
+        selectedRagKeys?: string[];
+        autoEscalationEnabled?: boolean;
+    } = {};
     if (patch.name !== undefined) {
         update.name = patch.name.trim() || "Untitled chat";
+    }
+    if (patch.primaryColor !== undefined) {
+        update.primaryColor = patch.primaryColor;
+    }
+    if (patch.autoEscalationEnabled !== undefined) {
+        update.autoEscalationEnabled = Boolean(patch.autoEscalationEnabled);
     }
     if (patch.documentIds !== undefined) {
         const keys = await resolveRagKeys(userId, patch.documentIds);

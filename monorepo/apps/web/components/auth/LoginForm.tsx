@@ -8,14 +8,20 @@ import { Input } from "@repo/ui/input";
 import { PasswordInput } from "@repo/ui/password-input";
 import { useAuth } from "@repo/auth/hooks/useAuth";
 import { validateEmail, validateLoginPassword } from "@/components/auth/validation";
+import { AuthDivider, GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 type LoginFormProps = {
     infoMessage?: string | null;
+    errorMessage?: string | null;
     /** Two quick-login buttons; only when `ALLOW_DEMO_LOGIN=true` (see demoUsers defaults). */
     demoLoginEnabled?: boolean;
 };
 
-export function LoginForm({ infoMessage = null, demoLoginEnabled = false }: LoginFormProps) {
+export function LoginForm({
+    infoMessage = null,
+    errorMessage = null,
+    demoLoginEnabled = false,
+}: LoginFormProps) {
     const router = useRouter();
     const { login } = useAuth();
 
@@ -23,7 +29,7 @@ export function LoginForm({ infoMessage = null, demoLoginEnabled = false }: Logi
     const [password, setPassword] = useState("");
     const [emailError, setEmailError] = useState<string | undefined>(undefined);
     const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
-    const [error, setError] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(errorMessage);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     function validateForm() {
@@ -87,6 +93,8 @@ export function LoginForm({ infoMessage = null, demoLoginEnabled = false }: Logi
 
     return (
         <form className="space-y-5" onSubmit={onSubmit}>
+            <GoogleSignInButton />
+            <AuthDivider />
             <Input
                 id="login-email"
                 label="Email"
@@ -104,7 +112,7 @@ export function LoginForm({ infoMessage = null, demoLoginEnabled = false }: Logi
                 onBlur={() => setEmailError(validateEmail(email))}
                 aria-invalid={Boolean(emailError)}
                 autoFocus
-                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:ring-brand-500 ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
+                className={`glass-input h-11 rounded-xl text-base text-slate-900 placeholder:text-slate-500 focus:border-brand-500 focus:ring-brand-500 sm:text-sm ${emailError ? "border-red-400 focus:border-red-500 focus:ring-red-500" : ""
                     }`}
                 required
             />
@@ -124,7 +132,7 @@ export function LoginForm({ infoMessage = null, demoLoginEnabled = false }: Logi
                 }}
                 onBlur={() => setPasswordError(validateLoginPassword(password))}
                 aria-invalid={Boolean(passwordError)}
-                className={`glass-input h-11 rounded-xl text-slate-900 placeholder:text-slate-400 ${passwordError ? "border-red-400" : ""}`}
+                className={`glass-input h-11 rounded-xl text-base text-slate-900 placeholder:text-slate-500 sm:text-sm ${passwordError ? "border-red-400" : ""}`}
                 required
             />
             {passwordError ? <p className="-mt-3 text-xs text-red-700">{passwordError}</p> : null}

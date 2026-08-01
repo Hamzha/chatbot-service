@@ -1,6 +1,12 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "MONGODB_URI",
+    "MONGODB_DB_NAME",
+    "CHATBOT_API_URL",
+    "SCRAPER_API_URL"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],

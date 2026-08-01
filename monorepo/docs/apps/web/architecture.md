@@ -1,0 +1,84 @@
+# web Architecture
+
+## High-Level Components
+
+- `app/` - App Router pages and route handlers.
+- `components/` - UI components and feature-level clients.
+- `lib/auth` - Auth, permission checks, and RBAC enforcement.
+- `lib/db` - Data repositories for MongoDB-backed entities.
+- `lib/chatbot` - Upstream proxy, **`ragService.ts`** (RAG backend selection), synthetic job helpers.
+- `lib/scraper` - Crawl worker orchestration and scrape ingestion mapping.
+
+## Query Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant WebAPI as web/api/chatbot/query
+    participant DB as Mongo
+    participant Chatbot as chatbot-api
+    participant Gateway as model-gateway-api
+
+    Browser->>WebAPI: POST question + sessionId
+    WebAPI->>DB: Load session + selected rag keys
+    WebAPI->>DB: Load prior messages
+    alt USE_CHATBOT_API = true
+        WebAPI->>Chatbot: POST /v1/query (x-user-id)
+        Chatbot-->>WebAPI: event_ids
+    else USE_CHATBOT_API = false
+        WebAPI->>Gateway: POST /api/chat/completions
+        Gateway-->>WebAPI: output_text + sources
+        WebAPI-->>WebAPI: create synthetic job id
+    end
+    WebAPI-->>Browser: event_ids for polling
+```
+
+## Scraper Flow
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant WebAPI as web/api/scraper/*
+    participant Scraper as webscraper
+    participant DB as Mongo
+    participant Chatbot as chatbot-api
+
+    Browser->>WebAPI: POST scrape/crawl request
+    WebAPI->>Scraper: call /api/v1/scrape or /api/v1/crawl/stream
+    Scraper-->>WebAPI: structured text / stream events
+    WebAPI->>DB: persist job progress and metadata
+    WebAPI->>RAG: POST ingest-text on active backend (chatbot or model-gateway)
+    WebAPI->>DB: upsert ChatbotDocument site row
+    WebAPI-->>Browser: response + ingestion metadata
+```
+
+## Ingest Flow (PDF upload)
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant WebAPI as web/api/chatbot/ingest
+    participant CB as chatbot-api
+    participant MG as model-gateway-api
+    participant Jobs as web jobs + synthetic ids
+
+    Browser->>WebAPI: multipart PDF
+    alt USE_CHATBOT_API = true
+        WebAPI->>CB: POST /v1/ingest
+        CB-->>WebAPI: event_ids (Inngest)
+    else USE_CHATBOT_API = false
+        WebAPI->>MG: POST /api/rag/ingest
+        MG-->>WebAPI: ingested + source (sync)
+        WebAPI->>Jobs: create mgwi_* synthetic job
+        Jobs-->>WebAPI: event_ids
+    end
+    WebAPI-->>Browser: event_ids + document row
+```
+
+Ingest, document vector deletes, and scrape→text use **`getRagServiceBaseUrl()`** (same **`USE_CHATBOT_API`** toggle as chat). Both Python services share **`CHROMA_PERSIST_DIR`** / **`CHROMA_COLLECTION`** via **`monorepo/.env.shared`** (default **`monorepo/chroma_data`**).
+
+## Security and Control Points
+
+- Route-level permission gates via `requireUserIdWithPermission(...)`.
+- Per-user rate limiting on high-cost routes.
+- Service calls normalized through helper utilities for consistent upstream error handling.
