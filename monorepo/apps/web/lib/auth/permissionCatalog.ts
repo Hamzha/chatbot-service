@@ -61,6 +61,12 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
     }),
     { module: "limits", action: "read", description: "View trial / feature usage limits" },
     { module: "limits", action: "update", description: "Edit global and per-user feature limits" },
+    { module: "plans", action: "read", description: "View subscription plans in admin" },
+    {
+        module: "plans",
+        action: "update",
+        description: "Create, edit, delete, and sync subscription plans to Stripe",
+    },
 ];
 
 export function permissionCode(module: string, action: string): string {

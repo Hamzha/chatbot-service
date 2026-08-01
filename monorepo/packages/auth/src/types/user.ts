@@ -1,3 +1,5 @@
+export type SubscriptionStatus = "none" | "pending" | "active" | "past_due" | "canceled";
+
 export type UserRecord = {
     id: string;
     email: string;
@@ -11,6 +13,14 @@ export type UserRecord = {
     createdAt: string;
     /** Mongo role ObjectIds as strings; empty until RBAC seed assigns the default `user` role */
     roleIds?: string[];
+    /**
+     * Plan slug. `free` = trial quotas.
+     * Paid slugs match SubscriptionPlan.slug; limits apply only when subscriptionStatus is `active`.
+     */
+    plan?: string;
+    subscriptionStatus?: SubscriptionStatus;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
 };
 
 export type SafeUser = {
@@ -18,4 +28,6 @@ export type SafeUser = {
     email: string;
     name: string;
     createdAt: string;
+    plan: string;
+    subscriptionStatus: SubscriptionStatus;
 };

@@ -183,9 +183,10 @@ export async function requireFeatureQuota(
     const periodLabel = snap.period === "calendar_month" ? "this month" : "on your trial";
     return NextResponse.json(
         {
-            error: `Trial limit reached for ${key}: ${snap.used}/${snap.limit} used ${periodLabel}.`,
+            error: `Limit reached for ${key}: ${snap.used}/${snap.limit} used ${periodLabel}. Upgrade your plan to continue.`,
             code: "FEATURE_LIMIT_REACHED",
             quota: snap,
+            upgradeUrl: "/#pricing",
         },
         { status: 403 },
     );

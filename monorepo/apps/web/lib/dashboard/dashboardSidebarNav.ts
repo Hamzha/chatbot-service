@@ -57,4 +57,10 @@ export const DASHBOARD_SIDEBAR_NAV = [
         href: "/dashboard/admin/limits",
         permission: "limits:read",
     },
+    {
+        id: "nav.dashboard.admin.plans",
+        label: "Subscription plans",
+        href: "/dashboard/admin/plans",
+        permission: "plans:read",
+    },
 ] as const;

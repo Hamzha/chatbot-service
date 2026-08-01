@@ -36,3 +36,17 @@ export async function requireUserIdWithPermission(
     if (r instanceof NextResponse) return r;
     return { userId: r.ctx.userId };
 }
+
+/** Any signed-in user (no permission check). Used for billing self-service. */
+export async function requireAuthenticatedUserId(): Promise<{ userId: string } | NextResponse> {
+    const token = await getSessionCookie();
+    if (!token) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    try {
+        const payload = await verifySessionToken(token);
+        return { userId: payload.sub };
+    } catch {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+}

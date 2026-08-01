@@ -1,6 +1,8 @@
 import { getMongoDbUri } from "@repo/auth/lib/env";
 import mongoose, { Model, Schema, Types } from "mongoose";
 import { connectToDatabase } from "@/lib/db/client";
+import { findUserById } from "@/lib/db/userRepo";
+import { hasActivePaidAccess, resolvePlanLimitsBySlug } from "@/lib/billing/plans";
 import {
     DEFAULT_FEATURE_LIMITS,
     FEATURE_LIMIT_KEYS,
@@ -250,10 +252,29 @@ export async function resolveEffectiveFeatureLimits(userId: string): Promise<{
     period: FeatureLimitPeriod;
     limits: FeatureLimitValues;
     override: UserFeatureLimitOverrideRecord | null;
+    plan: string;
+    subscriptionStatus: string;
 }> {
-    const defaults = await getFeatureLimitDefaults();
-    const override = await getUserFeatureLimitOverride(userId);
-    const limits = { ...defaults.limits };
+    const [defaults, override, user] = await Promise.all([
+        getFeatureLimitDefaults(),
+        getUserFeatureLimitOverride(userId),
+        findUserById(userId),
+    ]);
+
+    const plan = user?.plan ?? "free";
+    const subscriptionStatus = user?.subscriptionStatus ?? "none";
+
+    let period = defaults.period;
+    let limits = { ...defaults.limits };
+
+    if (hasActivePaidAccess(plan, subscriptionStatus)) {
+        const paid = await resolvePlanLimitsBySlug(plan);
+        if (paid) {
+            limits = { ...paid.limits };
+            period = paid.period;
+        }
+    }
+
     if (override) {
         for (const key of FEATURE_LIMIT_KEYS) {
             if (key in override.limits) {
@@ -261,5 +282,5 @@ export async function resolveEffectiveFeatureLimits(userId: string): Promise<{
             }
         }
     }
-    return { period: defaults.period, limits, override };
+    return { period, limits, override, plan, subscriptionStatus };
 }

@@ -235,6 +235,36 @@ export const RBAC_CORE_ENFORCEMENT_POINTS = [
         surfaces: ["page"],
         feature: "UI — Roles & permissions admin page",
     },
+    {
+        id: "page.dashboard.admin.plans",
+        permission: "plans:read",
+        surfaces: ["page"],
+        feature: "UI — Subscription plans admin page",
+    },
+    {
+        id: "api.admin.plans.collection.GET",
+        permission: "plans:read",
+        surfaces: ["api"],
+        feature: "Admin — list subscription plans",
+    },
+    {
+        id: "api.admin.plans.collection.POST",
+        permission: "plans:update",
+        surfaces: ["api"],
+        feature: "Admin — create subscription plan",
+    },
+    {
+        id: "api.admin.plans.item.PATCH",
+        permission: "plans:update",
+        surfaces: ["api"],
+        feature: "Admin — update subscription plan",
+    },
+    {
+        id: "api.admin.plans.sync.POST",
+        permission: "plans:update",
+        surfaces: ["api"],
+        feature: "Admin — sync subscription plan to Stripe",
+    },
 ] as const satisfies readonly RbacEnforcementPoint[];
 
 const RBAC_NAV_ENFORCEMENT_POINTS: RbacEnforcementPoint[] = DASHBOARD_SIDEBAR_NAV.map((row) => ({

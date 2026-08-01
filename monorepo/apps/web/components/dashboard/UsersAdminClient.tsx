@@ -14,6 +14,7 @@ import {
 } from "@/lib/limits/featureLimitTypes";
 
 type RoleOption = { id: string; slug: string; name: string; enabled: boolean; isSystem: boolean };
+type SubscriptionStatus = "none" | "pending" | "active" | "past_due" | "canceled";
 type UserRow = {
     id: string;
     email: string;
@@ -22,6 +23,10 @@ type UserRow = {
     emailVerified: boolean;
     roleIds: string[];
     roles: { id: string; slug: string; name: string; enabled: boolean }[];
+    plan: string;
+    subscriptionStatus: SubscriptionStatus;
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
 };
 
 type UserLimitsState = {
@@ -29,6 +34,47 @@ type UserLimitsState = {
     effective: { limits: FeatureLimitValues; period: string };
     usage: { key: FeatureLimitKey; used: number; limit: number | null }[];
 };
+
+type StatusFilter = "all" | SubscriptionStatus;
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+    { value: "all", label: "All" },
+    { value: "active", label: "Active" },
+    { value: "pending", label: "Pending" },
+    { value: "past_due", label: "Past due" },
+    { value: "canceled", label: "Canceled" },
+    { value: "none", label: "Free / none" },
+];
+
+function statusLabel(status: SubscriptionStatus): string {
+    switch (status) {
+        case "active":
+            return "Active";
+        case "pending":
+            return "Pending";
+        case "past_due":
+            return "Past due";
+        case "canceled":
+            return "Canceled";
+        default:
+            return "Free";
+    }
+}
+
+function statusBadgeClass(status: SubscriptionStatus): string {
+    switch (status) {
+        case "active":
+            return "bg-emerald-100 text-emerald-800";
+        case "pending":
+            return "bg-amber-100 text-amber-800";
+        case "past_due":
+            return "bg-rose-100 text-rose-800";
+        case "canceled":
+            return "bg-slate-200 text-slate-700";
+        default:
+            return "bg-slate-100 text-slate-600";
+    }
+}
 
 async function readError(res: Response): Promise<string> {
     try {
@@ -53,8 +99,26 @@ export function UsersAdminClient() {
     const [userLimits, setUserLimits] = useState<UserLimitsState | null>(null);
     const [draftLimits, setDraftLimits] = useState<Partial<Record<FeatureLimitKey, string>>>({});
     const [savingLimits, setSavingLimits] = useState(false);
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+    const [query, setQuery] = useState("");
 
-    const selected = useMemo(() => users.find((u) => u.id === selectedId) ?? null, [users, selectedId]);
+    const filteredUsers = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        return users.filter((u) => {
+            if (statusFilter !== "all" && u.subscriptionStatus !== statusFilter) return false;
+            if (!q) return true;
+            return (
+                u.email.toLowerCase().includes(q) ||
+                u.name.toLowerCase().includes(q) ||
+                u.plan.toLowerCase().includes(q)
+            );
+        });
+    }, [users, statusFilter, query]);
+
+    const selected = useMemo(
+        () => users.find((u) => u.id === selectedId) ?? null,
+        [users, selectedId],
+    );
 
     const load = useCallback(async () => {
         setError(null);
@@ -74,11 +138,18 @@ export function UsersAdminClient() {
             if (!rolesRes.ok) throw new Error(await readError(rolesRes));
             const uj = (await usersRes.json()) as { users: UserRow[] };
             const rj = (await rolesRes.json()) as { roles: RoleOption[] };
-            setUsers(uj.users);
+            const normalized = uj.users.map((u) => ({
+                ...u,
+                plan: u.plan ?? "free",
+                subscriptionStatus: u.subscriptionStatus ?? "none",
+                stripeCustomerId: u.stripeCustomerId ?? null,
+                stripeSubscriptionId: u.stripeSubscriptionId ?? null,
+            }));
+            setUsers(normalized);
             setRoleOptions(rj.roles.sort((a, b) => a.slug.localeCompare(b.slug)));
             setSelectedId((prev) => {
-                if (prev && uj.users.some((u) => u.id === prev)) return prev;
-                return uj.users[0]?.id ?? null;
+                if (prev && normalized.some((u) => u.id === prev)) return prev;
+                return normalized[0]?.id ?? null;
             });
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
@@ -99,7 +170,9 @@ export function UsersAdminClient() {
         setDraftLimits({});
         void (async () => {
             try {
-                const res = await fetch(`/api/admin/limits/users/${selected.id}`, { credentials: "include" });
+                const res = await fetch(`/api/admin/limits/users/${selected.id}`, {
+                    credentials: "include",
+                });
                 if (!res.ok) return;
                 const data = (await res.json()) as UserLimitsState;
                 setUserLimits(data);
@@ -120,6 +193,13 @@ export function UsersAdminClient() {
             }
         })();
     }, [selected]);
+
+    useEffect(() => {
+        if (!selectedId) return;
+        if (!filteredUsers.some((u) => u.id === selectedId)) {
+            setSelectedId(filteredUsers[0]?.id ?? null);
+        }
+    }, [filteredUsers, selectedId]);
 
     const toggleRole = (roleId: string) => {
         setDraftRoleIds((prev) => {
@@ -145,8 +225,24 @@ export function UsersAdminClient() {
             });
             if (!res.ok) throw new Error(await readError(res));
             const json = (await res.json()) as { user: UserRow };
-            setUsers((prev) => prev.map((u) => (u.id === json.user.id ? json.user : u)));
-            setSuccess("Roles updated. User may need to refresh or log in again to see new permissions.");
+            setUsers((prev) =>
+                prev.map((u) =>
+                    u.id === json.user.id
+                        ? {
+                              ...json.user,
+                              plan: json.user.plan ?? u.plan,
+                              subscriptionStatus:
+                                  json.user.subscriptionStatus ?? u.subscriptionStatus,
+                              stripeCustomerId: json.user.stripeCustomerId ?? u.stripeCustomerId,
+                              stripeSubscriptionId:
+                                  json.user.stripeSubscriptionId ?? u.stripeSubscriptionId,
+                          }
+                        : u,
+                ),
+            );
+            setSuccess(
+                "Roles updated. User may need to refresh or log in again to see new permissions.",
+            );
             toast.success(`Roles updated for ${json.user.name}`, { id: loadingId });
         } catch (e) {
             const msg = extractErrorMessage(e, "Could not save roles");
@@ -214,7 +310,7 @@ export function UsersAdminClient() {
                 variant="plain"
                 eyebrow="Admin"
                 title="Users & roles"
-                subtitle="Assign roles and optional per-user feature limit overrides. Global defaults live under Feature limits."
+                subtitle="Assign roles, see subscription plan/status, and optional per-user feature limit overrides."
             />
 
             {error ? (
@@ -235,37 +331,75 @@ export function UsersAdminClient() {
                 </div>
             ) : null}
 
-            <div className="grid gap-5 sm:gap-6 md:grid-cols-[260px_minmax(0,1fr)]">
+            <div className="grid gap-5 sm:gap-6 md:grid-cols-[280px_minmax(0,1fr)]">
                 <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Users</p>
-                    <ul className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 sm:max-h-[60vh]">
-                        {users.map((u) => (
-                            <li key={u.id}>
-                                <button
-                                    type="button"
-                                    onClick={() => setSelectedId(u.id)}
-                                    aria-current={selectedId === u.id ? "true" : undefined}
-                                    className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${selectedId === u.id
-                                        ? "border-brand-300 bg-white text-brand-900 shadow-sm"
-                                        : "border-transparent text-slate-800 hover:bg-white/60"
-                                        }`}
-                                >
-                                    <span className="flex min-w-0 items-center gap-2 font-semibold">
-                                        <span className="truncate">{u.name}</span>
-                                        {currentUserId === u.id ? (
-                                            <span className="shrink-0 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-800">
-                                                You
-                                            </span>
-                                        ) : null}
-                                    </span>
-                                    <span className="block truncate text-xs text-slate-700">{u.email}</span>
-                                    <span className="mt-0.5 block text-[10px] text-slate-600">
-                                        {u.roles.length} role{u.roles.length === 1 ? "" : "s"}
-                                        {!u.emailVerified ? " · unverified email" : ""}
-                                    </span>
-                                </button>
-                            </li>
+                    <input
+                        type="search"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                        placeholder="Search name, email, plan…"
+                        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                        {STATUS_FILTERS.map((f) => (
+                            <button
+                                key={f.value}
+                                type="button"
+                                onClick={() => setStatusFilter(f.value)}
+                                className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition ${
+                                    statusFilter === f.value
+                                        ? "bg-brand-700 text-white"
+                                        : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+                                }`}
+                            >
+                                {f.label}
+                            </button>
                         ))}
+                    </div>
+                    <ul className="max-h-[42vh] space-y-1 overflow-y-auto pr-1 sm:max-h-[60vh]">
+                        {filteredUsers.length === 0 ? (
+                            <li className="rounded-xl bg-white/60 px-3 py-3 text-xs text-slate-600">
+                                No users match this filter.
+                            </li>
+                        ) : (
+                            filteredUsers.map((u) => (
+                                <li key={u.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedId(u.id)}
+                                        aria-current={selectedId === u.id ? "true" : undefined}
+                                        className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${
+                                            selectedId === u.id
+                                                ? "border-brand-300 bg-white text-brand-900 shadow-sm"
+                                                : "border-transparent text-slate-800 hover:bg-white/60"
+                                        }`}
+                                    >
+                                        <span className="flex min-w-0 items-center gap-2 font-semibold">
+                                            <span className="truncate">{u.name}</span>
+                                            {currentUserId === u.id ? (
+                                                <span className="shrink-0 rounded bg-brand-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-brand-800">
+                                                    You
+                                                </span>
+                                            ) : null}
+                                        </span>
+                                        <span className="block truncate text-xs text-slate-700">
+                                            {u.email}
+                                        </span>
+                                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold capitalize text-slate-700">
+                                                {u.plan}
+                                            </span>
+                                            <span
+                                                className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${statusBadgeClass(u.subscriptionStatus)}`}
+                                            >
+                                                {statusLabel(u.subscriptionStatus)}
+                                            </span>
+                                        </span>
+                                    </button>
+                                </li>
+                            ))
+                        )}
                     </ul>
                 </div>
 
@@ -276,8 +410,12 @@ export function UsersAdminClient() {
                         <>
                             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                                 <div className="min-w-0">
-                                    <h2 className="wrap-break-word text-lg font-semibold text-slate-900">{selected.name}</h2>
-                                    <p className="wrap-break-word text-sm text-slate-700">{selected.email}</p>
+                                    <h2 className="wrap-break-word text-lg font-semibold text-slate-900">
+                                        {selected.name}
+                                    </h2>
+                                    <p className="wrap-break-word text-sm text-slate-700">
+                                        {selected.email}
+                                    </p>
                                 </div>
                                 <button
                                     type="button"
@@ -289,8 +427,43 @@ export function UsersAdminClient() {
                                 </button>
                             </div>
 
+                            <div className="rounded-xl border border-slate-100 bg-white/80 p-3 sm:p-4">
+                                <h3 className="text-sm font-semibold text-slate-900">Subscription</h3>
+                                <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                                    <div>
+                                        <dt className="text-slate-600">Plan</dt>
+                                        <dd className="mt-0.5 font-medium capitalize text-slate-900">
+                                            {selected.plan}
+                                        </dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-slate-600">Status</dt>
+                                        <dd className="mt-0.5">
+                                            <span
+                                                className={`inline-flex rounded-md px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(selected.subscriptionStatus)}`}
+                                            >
+                                                {statusLabel(selected.subscriptionStatus)}
+                                            </span>
+                                        </dd>
+                                    </div>
+                                    <div className="min-w-0 sm:col-span-2">
+                                        <dt className="text-slate-600">Stripe customer</dt>
+                                        <dd className="mt-0.5 truncate font-mono text-xs text-slate-700">
+                                            {selected.stripeCustomerId || "—"}
+                                        </dd>
+                                    </div>
+                                    <div className="min-w-0 sm:col-span-2">
+                                        <dt className="text-slate-600">Stripe subscription</dt>
+                                        <dd className="mt-0.5 truncate font-mono text-xs text-slate-700">
+                                            {selected.stripeSubscriptionId || "—"}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </div>
+
                             <p className="text-sm text-slate-700">
-                                Check every role this user should have. Uncheck all to remove every role (they will have no permissions until you assign again).
+                                Check every role this user should have. Uncheck all to remove every role
+                                (they will have no permissions until you assign again).
                             </p>
 
                             <div className="max-h-[40vh] space-y-2 overflow-y-auto rounded-xl border border-slate-100 bg-white/80 p-3 sm:p-4">
@@ -307,14 +480,22 @@ export function UsersAdminClient() {
                                             disabled={saving}
                                         />
                                         <span className="min-w-0 flex-1">
-                                            <span className="wrap-break-word font-semibold text-slate-900">{r.name}</span>
+                                            <span className="wrap-break-word font-semibold text-slate-900">
+                                                {r.name}
+                                            </span>
                                             <span className="text-slate-600"> · </span>
-                                            <span className="wrap-break-word font-mono text-xs text-slate-700">{r.slug}</span>
+                                            <span className="wrap-break-word font-mono text-xs text-slate-700">
+                                                {r.slug}
+                                            </span>
                                             {r.isSystem ? (
-                                                <span className="ml-2 text-[10px] font-semibold uppercase text-slate-600">system</span>
+                                                <span className="ml-2 text-[10px] font-semibold uppercase text-slate-600">
+                                                    system
+                                                </span>
                                             ) : null}
                                             {r.enabled === false ? (
-                                                <span className="ml-2 text-[10px] font-semibold uppercase text-amber-800">disabled role</span>
+                                                <span className="ml-2 text-[10px] font-semibold uppercase text-amber-800">
+                                                    disabled role
+                                                </span>
                                             ) : null}
                                         </span>
                                     </label>
@@ -324,10 +505,13 @@ export function UsersAdminClient() {
                             <div className="space-y-3 border-t border-slate-200 pt-4">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>
-                                        <h3 className="text-sm font-semibold text-slate-900">Feature limit overrides</h3>
+                                        <h3 className="text-sm font-semibold text-slate-900">
+                                            Feature limit overrides
+                                        </h3>
                                         <p className="text-xs text-slate-600">
-                                            Leave blank to use global defaults. Type <span className="font-mono">unlimited</span> for no
-                                            cap. Period follows global settings
+                                            Leave blank to use global defaults. Type{" "}
+                                            <span className="font-mono">unlimited</span> for no cap.
+                                            Period follows global settings
                                             {userLimits ? ` (${userLimits.effective.period})` : ""}.
                                         </p>
                                     </div>
@@ -348,10 +532,13 @@ export function UsersAdminClient() {
                                             const usage = userLimits.usage.find((u) => u.key === key);
                                             return (
                                                 <label key={key} className="block text-sm">
-                                                    <span className="font-medium text-slate-800">{FEATURE_LIMIT_LABELS[key]}</span>
+                                                    <span className="font-medium text-slate-800">
+                                                        {FEATURE_LIMIT_LABELS[key]}
+                                                    </span>
                                                     <span className="ml-2 text-xs text-slate-600">
                                                         used {usage?.used ?? 0}
-                                                        {usage?.limit === null || usage?.limit === undefined
+                                                        {usage?.limit === null ||
+                                                        usage?.limit === undefined
                                                             ? " / ∞"
                                                             : ` / ${usage.limit}`}
                                                     </span>
@@ -362,7 +549,10 @@ export function UsersAdminClient() {
                                                         value={draftLimits[key] ?? ""}
                                                         disabled={!canEditLimits || savingLimits}
                                                         onChange={(e) =>
-                                                            setDraftLimits((prev) => ({ ...prev, [key]: e.target.value }))
+                                                            setDraftLimits((prev) => ({
+                                                                ...prev,
+                                                                [key]: e.target.value,
+                                                            }))
                                                         }
                                                     />
                                                 </label>
@@ -370,7 +560,9 @@ export function UsersAdminClient() {
                                         })}
                                     </div>
                                 ) : (
-                                    <p className="text-xs text-slate-600">Loading usage… (needs limits:read)</p>
+                                    <p className="text-xs text-slate-600">
+                                        Loading usage… (needs limits:read)
+                                    </p>
                                 )}
                             </div>
                         </>

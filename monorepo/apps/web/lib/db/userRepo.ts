@@ -1,4 +1,8 @@
-import type { SafeUser, UserRecord } from "@repo/auth/types";
+import type {
+    SafeUser,
+    SubscriptionStatus,
+    UserRecord,
+} from "@repo/auth/types";
 import mongoose, { Model, Schema, Types } from "mongoose";
 import { getMongoDbUri } from "@repo/auth/lib/env";
 import { connectToDatabase } from "@/lib/db/client";
@@ -13,6 +17,10 @@ type UserDoc = {
     image?: string | null;
     emailVerified?: Date;
     roleIds?: Types.ObjectId[];
+    plan?: string;
+    subscriptionStatus?: SubscriptionStatus;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -53,6 +61,31 @@ const userSchema = new Schema<UserDoc>(
             type: [{ type: Schema.Types.ObjectId, ref: "Role" }],
             default: [],
         },
+        plan: {
+            type: String,
+            default: "free",
+            trim: true,
+            lowercase: true,
+        },
+        subscriptionStatus: {
+            type: String,
+            enum: ["none", "pending", "active", "past_due", "canceled"],
+            default: "none",
+        },
+        stripeCustomerId: {
+            type: String,
+            default: null,
+            sparse: true,
+            unique: true,
+            index: true,
+        },
+        stripeSubscriptionId: {
+            type: String,
+            default: null,
+            sparse: true,
+            unique: true,
+            index: true,
+        },
     },
     {
         timestamps: true,
@@ -62,6 +95,26 @@ const userSchema = new Schema<UserDoc>(
 const UserModel: Model<UserDoc> =
     (mongoose.models.User as Model<UserDoc> | undefined) ||
     mongoose.model<UserDoc>("User", userSchema);
+
+function normalizePlan(plan: unknown): string {
+    if (typeof plan === "string" && plan.trim()) {
+        return plan.trim().toLowerCase();
+    }
+    return "free";
+}
+
+function normalizeSubscriptionStatus(status: unknown): SubscriptionStatus {
+    if (
+        status === "none" ||
+        status === "pending" ||
+        status === "active" ||
+        status === "past_due" ||
+        status === "canceled"
+    ) {
+        return status;
+    }
+    return "none";
+}
 
 function mapUserDocToRecord(user: UserDoc): UserRecord {
     return {
@@ -74,6 +127,10 @@ function mapUserDocToRecord(user: UserDoc): UserRecord {
         image: user.image ?? null,
         createdAt: user.createdAt.toISOString(),
         roleIds: user.roleIds?.map((id) => id.toString()),
+        plan: normalizePlan(user.plan),
+        subscriptionStatus: normalizeSubscriptionStatus(user.subscriptionStatus),
+        stripeCustomerId: user.stripeCustomerId ?? null,
+        stripeSubscriptionId: user.stripeSubscriptionId ?? null,
     };
 }
 
@@ -91,6 +148,8 @@ export function toSafeUser(user: UserRecord): SafeUser {
         email: user.email,
         name: user.name,
         createdAt: user.createdAt,
+        plan: normalizePlan(user.plan),
+        subscriptionStatus: normalizeSubscriptionStatus(user.subscriptionStatus),
     };
 }
 
@@ -235,12 +294,18 @@ export type AdminUserListRow = {
     emailVerified: boolean;
     roleIds: string[];
     roles: { id: string; slug: string; name: string; enabled: boolean }[];
+    plan: string;
+    subscriptionStatus: SubscriptionStatus;
+    stripeCustomerId: string | null;
+    stripeSubscriptionId: string | null;
 };
 
 export async function listUsersForAdmin(): Promise<AdminUserListRow[]> {
     await ensureDbConnection();
     const docs = await UserModel.find({})
-        .select("_id email name createdAt emailVerified roleIds")
+        .select(
+            "_id email name createdAt emailVerified roleIds plan subscriptionStatus stripeCustomerId stripeSubscriptionId",
+        )
         .sort({ createdAt: -1 })
         .lean<UserDoc[]>();
 
@@ -268,6 +333,10 @@ export async function listUsersForAdmin(): Promise<AdminUserListRow[]> {
             emailVerified: Boolean(d.emailVerified),
             roleIds,
             roles,
+            plan: normalizePlan(d.plan),
+            subscriptionStatus: normalizeSubscriptionStatus(d.subscriptionStatus),
+            stripeCustomerId: d.stripeCustomerId ?? null,
+            stripeSubscriptionId: d.stripeSubscriptionId ?? null,
         };
     });
 }
@@ -285,6 +354,10 @@ export async function getAdminUserRow(userId: string): Promise<AdminUserListRow 
         emailVerified: u.emailVerified !== null,
         roleIds,
         roles: roles.map((r) => ({ id: r.id, slug: r.slug, name: r.name, enabled: r.enabled })),
+        plan: normalizePlan(u.plan),
+        subscriptionStatus: normalizeSubscriptionStatus(u.subscriptionStatus),
+        stripeCustomerId: u.stripeCustomerId ?? null,
+        stripeSubscriptionId: u.stripeSubscriptionId ?? null,
     };
 }
 
@@ -318,5 +391,47 @@ export async function updateUserPassword(userId: string, passwordHash: string): 
         { new: true },
     ).lean<UserDoc>();
 
+    return updated ? mapUserDocToRecord(updated) : null;
+}
+
+export async function findUserByStripeCustomerId(customerId: string): Promise<UserRecord | null> {
+    if (!customerId) return null;
+    await ensureDbConnection();
+    const user = await UserModel.findOne({ stripeCustomerId: customerId }).lean<UserDoc | null>();
+    return user ? mapUserDocToRecord(user) : null;
+}
+
+export async function findUserByStripeSubscriptionId(subscriptionId: string): Promise<UserRecord | null> {
+    if (!subscriptionId) return null;
+    await ensureDbConnection();
+    const user = await UserModel.findOne({ stripeSubscriptionId: subscriptionId }).lean<UserDoc | null>();
+    return user ? mapUserDocToRecord(user) : null;
+}
+
+export type UserBillingPatch = {
+    plan?: string;
+    subscriptionStatus?: SubscriptionStatus;
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+};
+
+export async function updateUserBilling(
+    userId: string,
+    patch: UserBillingPatch,
+): Promise<UserRecord | null> {
+    if (!Types.ObjectId.isValid(userId)) return null;
+    await ensureDbConnection();
+
+    const $set: Record<string, unknown> = {};
+    if (patch.plan !== undefined) $set.plan = patch.plan;
+    if (patch.subscriptionStatus !== undefined) $set.subscriptionStatus = patch.subscriptionStatus;
+    if (patch.stripeCustomerId !== undefined) $set.stripeCustomerId = patch.stripeCustomerId;
+    if (patch.stripeSubscriptionId !== undefined) $set.stripeSubscriptionId = patch.stripeSubscriptionId;
+
+    if (Object.keys($set).length === 0) {
+        return findUserById(userId);
+    }
+
+    const updated = await UserModel.findByIdAndUpdate(userId, { $set }, { new: true }).lean<UserDoc | null>();
     return updated ? mapUserDocToRecord(updated) : null;
 }
