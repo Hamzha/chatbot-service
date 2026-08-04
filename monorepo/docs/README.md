@@ -5,6 +5,7 @@ This folder is the central documentation hub for all applications in this reposi
 ## Product flow (recommended read)
 
 - [`APPLICATION_FLOW_MODEL_GATEWAY.md`](./APPLICATION_FLOW_MODEL_GATEWAY.md) — full journey from login → knowledge base → chatbot → embed script ( **model-gateway-api + webscraper only** ).
+- [`TRIAL_MODE_FLOW.md`](./TRIAL_MODE_FLOW.md) — trial quotas, limit reached, Stripe subscription upgrade, admin plans.
 
 ## Apps
 
