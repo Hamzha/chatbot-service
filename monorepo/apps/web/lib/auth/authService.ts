@@ -19,6 +19,7 @@ import {
     updateUserPassword,
 } from "@/lib/db/userRepo";
 import { ensureRbacSeeded } from "@/lib/db/rbacSeed";
+import { addRoleSlugsToUser } from "@/lib/db/roleRepo";
 import { generateEmailToken, verifyEmailToken } from "@repo/auth/lib/tokens";
 import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/email/resend";
 import type { LoginInput, SessionPayload, SignupInput } from "@repo/auth/types";
@@ -52,7 +53,7 @@ export async function signup(input: SignupInput): Promise<{ user: SafeUser }> {
     });
 
     await ensureRbacSeeded();
-    // New accounts get the `user` system role via migrateUsersWithoutRoles (empty roleIds → user).
+    await addRoleSlugsToUser(createdUser.id, ["user"]);
 
     // Send verification email
     try {
@@ -130,7 +131,7 @@ export async function loginOrSignupWithGoogle(
                 googleId: profile.googleId,
                 image: profile.picture,
             });
-            await ensureRbacSeeded();
+            await addRoleSlugsToUser(user.id, ["user"]);
         }
     }
 
