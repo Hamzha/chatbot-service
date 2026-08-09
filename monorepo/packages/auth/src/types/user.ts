@@ -21,6 +21,10 @@ export type UserRecord = {
     subscriptionStatus?: SubscriptionStatus;
     stripeCustomerId?: string | null;
     stripeSubscriptionId?: string | null;
+    /** False until first-run product onboarding is finished or skipped. */
+    onboardingCompleted?: boolean;
+    onboardingUseCase?: string | null;
+    onboardingWebsiteUrl?: string | null;
 };
 
 export type SafeUser = {
@@ -30,4 +34,5 @@ export type SafeUser = {
     createdAt: string;
     plan: string;
     subscriptionStatus: SubscriptionStatus;
+    onboardingCompleted: boolean;
 };

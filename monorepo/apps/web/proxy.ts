@@ -31,6 +31,19 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
+    if (isProtectedRoute && user) {
+        const onOnboarding =
+            pathname === "/dashboard/onboarding" || pathname.startsWith("/dashboard/onboarding/");
+
+        if (!user.onboardingCompleted && !onOnboarding) {
+            return NextResponse.redirect(new URL("/dashboard/onboarding", request.url));
+        }
+
+        if (user.onboardingCompleted && onOnboarding) {
+            return NextResponse.redirect(new URL("/dashboard", request.url));
+        }
+    }
+
     return NextResponse.next();
 }
 

@@ -21,6 +21,9 @@ type UserDoc = {
     subscriptionStatus?: SubscriptionStatus;
     stripeCustomerId?: string | null;
     stripeSubscriptionId?: string | null;
+    onboardingCompleted?: boolean;
+    onboardingUseCase?: string | null;
+    onboardingWebsiteUrl?: string | null;
     createdAt: Date;
     updatedAt: Date;
 };
@@ -86,6 +89,20 @@ const userSchema = new Schema<UserDoc>(
             unique: true,
             index: true,
         },
+        onboardingCompleted: {
+            type: Boolean,
+            default: false,
+        },
+        onboardingUseCase: {
+            type: String,
+            default: null,
+            trim: true,
+        },
+        onboardingWebsiteUrl: {
+            type: String,
+            default: null,
+            trim: true,
+        },
     },
     {
         timestamps: true,
@@ -131,6 +148,9 @@ function mapUserDocToRecord(user: UserDoc): UserRecord {
         subscriptionStatus: normalizeSubscriptionStatus(user.subscriptionStatus),
         stripeCustomerId: user.stripeCustomerId ?? null,
         stripeSubscriptionId: user.stripeSubscriptionId ?? null,
+        onboardingCompleted: user.onboardingCompleted !== false,
+        onboardingUseCase: user.onboardingUseCase ?? null,
+        onboardingWebsiteUrl: user.onboardingWebsiteUrl ?? null,
     };
 }
 
@@ -150,6 +170,7 @@ export function toSafeUser(user: UserRecord): SafeUser {
         createdAt: user.createdAt,
         plan: normalizePlan(user.plan),
         subscriptionStatus: normalizeSubscriptionStatus(user.subscriptionStatus),
+        onboardingCompleted: user.onboardingCompleted !== false,
     };
 }
 
@@ -199,6 +220,7 @@ export async function upsertVerifiedUserByEmail(input: {
                 name: input.name.trim(),
                 passwordHash: input.passwordHash,
                 emailVerified: now,
+                onboardingCompleted: true,
             },
         },
         { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
@@ -222,6 +244,7 @@ export async function createUser(input: {
         email: normalized,
         name: input.name.trim(),
         passwordHash: input.passwordHash,
+        onboardingCompleted: false,
     });
 
     return mapUserDocToRecord(created.toObject() as UserDoc);
@@ -242,6 +265,7 @@ export async function createGoogleUser(input: {
         googleId: input.googleId,
         image: input.image ?? null,
         emailVerified: new Date(),
+        onboardingCompleted: false,
     });
 
     return mapUserDocToRecord(created.toObject() as UserDoc);
@@ -434,4 +458,47 @@ export async function updateUserBilling(
 
     const updated = await UserModel.findByIdAndUpdate(userId, { $set }, { new: true }).lean<UserDoc | null>();
     return updated ? mapUserDocToRecord(updated) : null;
+}
+
+export type OnboardingPatch = {
+    useCase?: string | null;
+    websiteUrl?: string | null;
+};
+
+/** Mark first-run onboarding finished (or skipped). Idempotent. */
+export async function completeUserOnboarding(
+    userId: string,
+    patch: OnboardingPatch = {},
+): Promise<UserRecord | null> {
+    if (!Types.ObjectId.isValid(userId)) return null;
+    await ensureDbConnection();
+
+    const $set: Record<string, unknown> = {
+        onboardingCompleted: true,
+    };
+    if (patch.useCase !== undefined) {
+        const trimmed = patch.useCase?.trim() || null;
+        $set.onboardingUseCase = trimmed;
+    }
+    if (patch.websiteUrl !== undefined) {
+        const trimmed = patch.websiteUrl?.trim() || null;
+        $set.onboardingWebsiteUrl = trimmed;
+    }
+
+    const updated = await UserModel.findByIdAndUpdate(userId, { $set }, { new: true }).lean<UserDoc | null>();
+    return updated ? mapUserDocToRecord(updated) : null;
+}
+
+/**
+ * One-shot backfill for accounts that predate the wizard.
+ * Only sets completed when the field is missing — new signups store `false`
+ * explicitly and must not be overwritten by seed on later logins.
+ */
+export async function backfillOnboardingCompletedForExistingUsers(): Promise<number> {
+    await ensureDbConnection();
+    const result = await UserModel.updateMany(
+        { onboardingCompleted: { $exists: false } },
+        { $set: { onboardingCompleted: true } },
+    );
+    return result.modifiedCount;
 }

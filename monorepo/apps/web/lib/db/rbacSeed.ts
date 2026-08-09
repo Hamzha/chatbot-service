@@ -12,7 +12,7 @@ import {
     addRoleSlugsToUser,
 } from "@/lib/db/roleRepo";
 import { ensureDemoUsers } from "@/lib/db/demoUsers";
-import { findUserByEmail } from "@/lib/db/userRepo";
+import { backfillOnboardingCompletedForExistingUsers, findUserByEmail } from "@/lib/db/userRepo";
 
 let seedPromise: Promise<void> | null = null;
 
@@ -48,6 +48,7 @@ async function runSeed(): Promise<void> {
         await RoleModel.updateMany({ enabled: { $exists: false } }, { $set: { enabled: true } });
     }
     await migrateUsersWithoutRoles();
+    await backfillOnboardingCompletedForExistingUsers();
     await bootstrapAdminFromEnv();
     await ensureDemoUsers();
 }
