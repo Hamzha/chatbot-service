@@ -109,9 +109,11 @@ Page also double-checks: `app/(protected)/dashboard/onboarding/page.tsx`.
 
 1. **Welcome** — trial note  
 2. **Use case** — support / sales / faq / other  
-3. **Content** — website scrape (`POST /api/scraper/scrape`) **or** PDF (`POST /api/chatbot/ingest`) — optional  
-4. **Bot** — if a document id exists → `POST /api/chatbot/sessions`; else finish without a bot  
+3. **Content** — website scrape (`POST /api/scraper/scrape`, uses returned `ingestion.documentId`) **or** PDF (`POST /api/chatbot/ingest`) — optional  
+4. **Bot** — if a real library `documentId` exists → `POST /api/chatbot/sessions`; else finish without a bot  
 5. **Done** → dashboard (or the new chatbot)
+
+If scrape succeeds but library registration fails (RAG/gateway down), the wizard **stops on the content step** with an error instead of advancing with a bad id.
 
 **Skip** always calls the same PATCH and sets `onboardingCompleted: true`.
 

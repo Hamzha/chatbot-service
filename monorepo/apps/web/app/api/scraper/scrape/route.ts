@@ -42,8 +42,12 @@ async function postScrape(req: NextRequest) {
             data?: { text_content?: string; title?: string; url?: string };
         };
 
-        let ingestion: { ingested: number; displaySource: string; ragSourceKey: string } | null =
-            null;
+        let ingestion: {
+            ingested: number;
+            displaySource: string;
+            ragSourceKey: string;
+            documentId: string;
+        } | null = null;
 
         if (data.success && data.data) {
             const row = data.data;

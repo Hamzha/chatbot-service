@@ -29,7 +29,7 @@ function deriveSiteKey(url: string): { siteKey: string; host: string } {
 export async function registerScrapedDocument(
     userId: string,
     page: { url: string; title?: string; textContent: string },
-): Promise<{ ingested: number; displaySource: string; ragSourceKey: string } | null> {
+): Promise<{ ingested: number; displaySource: string; ragSourceKey: string; documentId: string } | null> {
     const url = page.url.trim();
     if (!url || !page.textContent.trim()) return null;
 
@@ -54,9 +54,11 @@ export async function registerScrapedDocument(
             ingested: result.ingested,
             displaySource: record.source,
             ragSourceKey: url,
+            documentId: record.id,
         };
     } catch (err) {
         console.error("[scraper] failed to upsert site ChatbotDocument row:", err);
-        return { ingested: result.ingested, displaySource: host, ragSourceKey: url };
+        // Vectors may exist, but without a library row the bot cannot be created.
+        return null;
     }
 }

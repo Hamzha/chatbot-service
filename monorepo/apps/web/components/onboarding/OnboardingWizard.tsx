@@ -58,14 +58,6 @@ async function loadDocuments(): Promise<LibraryDoc[]> {
     return data.sources ?? [];
 }
 
-function hostFromUrl(url: string): string | null {
-    try {
-        return new URL(url).host;
-    } catch {
-        return null;
-    }
-}
-
 type Props = {
     userName: string;
 };
@@ -160,7 +152,11 @@ export function OnboardingWizard({ userName }: Props) {
         });
         const data = await parseJsonResponse<{
             success?: boolean;
-            ingestion?: { ingested?: number; displaySource?: string };
+            ingestion?: {
+                ingested?: number;
+                displaySource?: string;
+                documentId?: string;
+            };
             error?: string;
         }>(res);
         if (!res.ok) {
@@ -169,13 +165,13 @@ export function OnboardingWizard({ userName }: Props) {
         if (!data.success) {
             throw new Error("Scrape did not succeed.");
         }
-        const docs = await loadDocuments();
-        const host = hostFromUrl(url);
-        const match =
-            docs.find((d) => d.kind === "site" && host && d.source === host) ||
-            docs.find((d) => host && (d.source === host || d.ragSourceKey?.includes(host))) ||
-            docs[0];
-        return match?.id ?? null;
+        const documentId = data.ingestion?.documentId?.trim() || null;
+        if (!documentId) {
+            throw new Error(
+                "Page was scraped but nothing was added to your library. Check that the scraper and model gateway are running, then try again.",
+            );
+        }
+        return documentId;
     }
 
     async function onContentContinue() {
@@ -206,13 +202,21 @@ export function OnboardingWizard({ userName }: Props) {
         setBusy(true);
         setError(null);
         try {
-            if (documentId) {
+            const resolvedDocId = documentId;
+            if (resolvedDocId) {
+                // Re-check library so we never create a bot against a missing doc.
+                const docs = await loadDocuments();
+                if (!docs.some((d) => d.id === resolvedDocId)) {
+                    throw new Error(
+                        "That knowledge is no longer in your library. Go back and scrape or upload again.",
+                    );
+                }
                 const res = await fetch("/api/chatbot/sessions", {
                     method: "POST",
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({
                         name: botName.trim() || "My first bot",
-                        documentIds: [documentId],
+                        documentIds: [resolvedDocId],
                     }),
                 });
                 const data = await parseJsonResponse<{
